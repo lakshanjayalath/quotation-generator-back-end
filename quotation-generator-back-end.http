@@ -1,0 +1,6 @@
+@quotation_generator_back_end_HostAddress = http://localhost:5264
+
+GET {{quotation_generator_back_end_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
