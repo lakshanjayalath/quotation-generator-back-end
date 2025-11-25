@@ -13,6 +13,7 @@ namespace quotation_generator_back_end.Data
         public DbSet<Item> Items { get; set; }
         public DbSet<Client> Clients { get; set; }
         public DbSet<ClientContact> ClientContacts { get; set; }
+        public DbSet<Models.User> Users { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -46,6 +47,21 @@ namespace quotation_generator_back_end.Data
                 .WithOne(cc => cc.Client)
                 .HasForeignKey(cc => cc.ClientId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Configure User entity
+            modelBuilder.Entity<Models.User>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.FirstName).HasMaxLength(200);
+                entity.Property(e => e.LastName).HasMaxLength(200);
+                entity.Property(e => e.Email).HasMaxLength(200);
+                entity.Property(e => e.Language).HasMaxLength(50);
+                entity.Property(e => e.Address).HasMaxLength(1000);
+                entity.Property(e => e.IdNumber).HasMaxLength(100);
+                entity.Property(e => e.PasswordHash).HasMaxLength(200);
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+                entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            });
         }
     }
 }
