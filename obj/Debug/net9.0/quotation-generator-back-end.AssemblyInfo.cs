@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("quotation-generator-back-end")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+550a295b2b4b034f1f097e7a8680fcaa7abe6804")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+58a581cdc54c1b3f00073dd033ab14ebabb06aee")]
 [assembly: System.Reflection.AssemblyProductAttribute("quotation-generator-back-end")]
 [assembly: System.Reflection.AssemblyTitleAttribute("quotation-generator-back-end")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

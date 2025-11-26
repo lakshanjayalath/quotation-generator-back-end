@@ -312,3 +312,4 @@ D:\industry-project\react-project\Quotation generation project\quotation-generat
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.pdb
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.genruntimeconfig.cache
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\obj\Debug\net9.0\ref\quotation-generator-back-end.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
