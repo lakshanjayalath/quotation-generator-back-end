@@ -13,6 +13,7 @@ namespace quotation_generator_back_end.Data
         public DbSet<Item> Items { get; set; }
         public DbSet<Client> Clients { get; set; }
         public DbSet<ClientContact> ClientContacts { get; set; }
+        public DbSet<User> Users { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
