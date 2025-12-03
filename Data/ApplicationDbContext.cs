@@ -14,6 +14,8 @@ namespace quotation_generator_back_end.Data
         public DbSet<Client> Clients { get; set; }
         public DbSet<ClientContact> ClientContacts { get; set; }
         public DbSet<Models.User> Users { get; set; }
+        public DbSet<Quotation> Quotations { get; set; }
+        public DbSet<QuotationItem> QuotationItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -61,6 +63,52 @@ namespace quotation_generator_back_end.Data
                 entity.Property(e => e.PasswordHash).HasMaxLength(200);
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
                 entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+            });
+
+            // Configure Quotation entity
+            modelBuilder.Entity<Quotation>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.QuoteNumber).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.PoNumber).HasMaxLength(100);
+                entity.Property(e => e.ClientName).HasMaxLength(200);
+                entity.Property(e => e.DiscountType).HasMaxLength(20);
+                entity.Property(e => e.Status).HasMaxLength(50);
+                entity.Property(e => e.Project).HasMaxLength(200);
+                entity.Property(e => e.AssignedUser).HasMaxLength(200);
+                entity.Property(e => e.Vendor).HasMaxLength(200);
+                entity.Property(e => e.Design).HasMaxLength(200);
+                entity.Property(e => e.Subtotal).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.Total).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.NetAmount).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.PartialDeposit).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.Discount).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.ExchangeRate).HasColumnType("decimal(18,6)");
+                entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+                entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+                // Relationship with Client (optional)
+                entity.HasOne(q => q.Client)
+                    .WithMany()
+                    .HasForeignKey(q => q.ClientId)
+                    .OnDelete(DeleteBehavior.SetNull);
+            });
+
+            // Configure QuotationItem entity
+            modelBuilder.Entity<QuotationItem>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.ItemName).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.Property(e => e.UnitCost).HasColumnType("decimal(18,2)");
+                entity.Property(e => e.LineTotal).HasColumnType("decimal(18,2)");
+
+                // Relationship with Quotation
+                entity.HasOne(qi => qi.Quotation)
+                    .WithMany(q => q.Items)
+                    .HasForeignKey(qi => qi.QuotationId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }
