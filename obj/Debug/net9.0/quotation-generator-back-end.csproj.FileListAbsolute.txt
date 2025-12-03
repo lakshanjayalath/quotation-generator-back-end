@@ -33,3 +33,39 @@ D:\Campus Projects\quotation-generator\quotation-generator-back-end\obj\Debug\ne
 D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
 D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerGen.dll
 D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerUI.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\appsettings.Development.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\appsettings.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\quotation-generator-back-end.staticwebassets.endpoints.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\quotation-generator-back-end.exe
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\quotation-generator-back-end.deps.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\quotation-generator-back-end.runtimeconfig.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\quotation-generator-back-end.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\quotation-generator-back-end.pdb
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.AspNetCore.OpenApi.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.OpenApi.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\Swashbuckle.AspNetCore.Swagger.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerGen.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\bin\Debug\net9.0\Swashbuckle.AspNetCore.SwaggerUI.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.csproj.AssemblyReference.cache
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\rpswa.dswa.cache.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.GeneratedMSBuildEditorConfig.editorconfig
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.AssemblyInfoInputs.cache
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.AssemblyInfo.cs
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.csproj.CoreCompileInputs.cache
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.MvcApplicationPartsAssemblyInfo.cs
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.MvcApplicationPartsAssemblyInfo.cache
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.sourcelink.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\rjimswa.dswa.cache.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\rjsmrazor.dswa.cache.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\rjsmcshtml.dswa.cache.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\scopedcss\bundle\quotation-generator-back-end.styles.css
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\staticwebassets.build.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\staticwebassets.build.json.cache
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\staticwebassets.development.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\staticwebassets.build.endpoints.json
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotatio.2EB4726F.Up2Date
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\refint\quotation-generator-back-end.dll
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.pdb
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.genruntimeconfig.cache
+D:\My Projects\Quotation App\Backend-99x\quotation-generator-back-end\obj\Debug\net9.0\ref\quotation-generator-back-end.dll

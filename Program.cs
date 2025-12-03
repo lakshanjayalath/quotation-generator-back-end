@@ -1,8 +1,40 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using QuotationGeneratorBackEnd.Repositories;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+// Configure CORS to allow front-end apps during development
+var allowOrigins = builder.Configuration.GetValue<string[]>("AllowedOrigins") ?? new[] { "http://localhost:3000", "http://localhost:5173" };
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowFrontend", policy =>
+    {
+        policy.WithOrigins(allowOrigins)
+              .AllowAnyHeader()
+              .AllowAnyMethod()
+              .AllowCredentials();
+    });
+});
+
+// Controllers + JSON options
+builder.Services.AddControllers()
+    .AddJsonOptions(opts =>
+    {
+        opts.JsonSerializerOptions.PropertyNamingPolicy = JsonNamingPolicy.CamelCase;
+        opts.JsonSerializerOptions.DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull;
+        opts.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles;
+    });
+
+// Repository (in-memory for now)
+builder.Services.AddSingleton<IQuotationRepository, InMemoryQuotationRepository>();
+
+// Health checks
+builder.Services.AddHealthChecks();
 
 var app = builder.Build();
 
@@ -12,7 +44,12 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+app.UseCors("AllowFrontend");
+app.MapControllers();
 app.UseHttpsRedirection();
+
+// Health endpoint
+app.MapHealthChecks("/health");
 
 var summaries = new[]
 {
