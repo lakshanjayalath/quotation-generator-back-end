@@ -41,9 +41,11 @@ namespace quotation_generator_back_end.Services
 
         public byte[] ExportExcel(DataTable table, string reportType = "Report")
         {
-            // Use the newer EPPlus static License property when available to avoid runtime license exceptions/warnings
-            // Set EPPlus license context for non-commercial use. Use the LicenseContext property (works across versions).
+            // Set EPPlus license for non-commercial use
+            // Using pragma to suppress deprecation warning for cross-version compatibility
+#pragma warning disable CS0618
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+#pragma warning restore CS0618
 
             // If table is null or has no columns, generate a simple workbook with a "No data" message to avoid exceptions
             if (table == null || table.Columns.Count == 0)
@@ -58,13 +60,14 @@ namespace quotation_generator_back_end.Services
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Report");
 
-            var headerColorHex = "FFBC4749";
-            var altRowColorHex = "FFF5F5F5";
+            // Colors used for styling
+            var headerColor = System.Drawing.Color.FromArgb(188, 71, 73);
+            var altRowColor = System.Drawing.Color.FromArgb(245, 245, 245);
 
             ws.Cells[1, 1].Value = $"{reportType} Report";
             ws.Cells[1, 1].Style.Font.Size = 14;
             ws.Cells[1, 1].Style.Font.Bold = true;
-            ws.Cells[1, 1].Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(188, 71, 73));
+            ws.Cells[1, 1].Style.Font.Color.SetColor(headerColor);
             if (table.Columns.Count >= 1) ws.Cells[1, 1, 1, table.Columns.Count].Merge = true;
 
             ws.Cells[2, 1].Value = $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
@@ -80,7 +83,7 @@ namespace quotation_generator_back_end.Services
                 cell.Style.Font.Bold = true;
                 cell.Style.Font.Color.SetColor(System.Drawing.Color.White);
                 cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                cell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(188, 71, 73));
+                cell.Style.Fill.BackgroundColor.SetColor(headerColor);
                 cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
                 cell.Style.VerticalAlignment = ExcelVerticalAlignment.Center;
                 cell.Style.Border.Left.Style = ExcelBorderStyle.Thin;
@@ -120,7 +123,7 @@ namespace quotation_generator_back_end.Services
                     if (isAltRow)
                     {
                         cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                        cell.Style.Fill.BackgroundColor.SetColor(System.Drawing.Color.FromArgb(245, 245, 245));
+                        cell.Style.Fill.BackgroundColor.SetColor(altRowColor);
                     }
 
                     cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;

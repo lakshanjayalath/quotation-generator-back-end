@@ -334,3 +334,23 @@ D:\industry-project\react-project\Quotation generation project\quotation-generat
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\System.Security.Cryptography.Xml.dll
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\de\PdfSharpCore.resources.dll
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\runtimes\win\lib\net9.0\System.Security.Cryptography.Pkcs.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\CsvHelper.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\EPPlus.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\EPPlus.Interfaces.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.Abstractions.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.FileExtensions.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.Json.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.FileProviders.Abstractions.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.FileProviders.Physical.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.FileSystemGlobbing.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Primitives.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.IO.RecyclableMemoryStream.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\PdfSharpCore.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\ICSharpCode.SharpZipLib.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\SixLabors.Fonts.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\SixLabors.ImageSharp.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\System.Security.Cryptography.Pkcs.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\System.Security.Cryptography.Xml.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\de\PdfSharpCore.resources.dll
+D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\runtimes\win\lib\net9.0\System.Security.Cryptography.Pkcs.dll
