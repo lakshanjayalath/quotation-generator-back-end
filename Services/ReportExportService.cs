@@ -41,7 +41,20 @@ namespace quotation_generator_back_end.Services
 
         public byte[] ExportExcel(DataTable table, string reportType = "Report")
         {
+            // Use the newer EPPlus static License property when available to avoid runtime license exceptions/warnings
+            // Set EPPlus license context for non-commercial use. Use the LicenseContext property (works across versions).
             ExcelPackage.LicenseContext = LicenseContext.NonCommercial;
+
+            // If table is null or has no columns, generate a simple workbook with a "No data" message to avoid exceptions
+            if (table == null || table.Columns.Count == 0)
+            {
+                using var packageEmpty = new ExcelPackage();
+                var wsEmpty = packageEmpty.Workbook.Worksheets.Add("Report");
+                wsEmpty.Cells[1, 1].Value = $"{reportType} Report";
+                wsEmpty.Cells[2, 1].Value = "No data available";
+                wsEmpty.Cells[1, 1].Style.Font.Bold = true;
+                return packageEmpty.GetAsByteArray();
+            }
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Report");
 
@@ -52,12 +65,12 @@ namespace quotation_generator_back_end.Services
             ws.Cells[1, 1].Style.Font.Size = 14;
             ws.Cells[1, 1].Style.Font.Bold = true;
             ws.Cells[1, 1].Style.Font.Color.SetColor(System.Drawing.Color.FromArgb(188, 71, 73));
-            ws.Cells[1, 1, 1, table.Columns.Count].Merge = true;
+            if (table.Columns.Count >= 1) ws.Cells[1, 1, 1, table.Columns.Count].Merge = true;
 
             ws.Cells[2, 1].Value = $"Generated: {DateTime.Now:yyyy-MM-dd HH:mm:ss}";
             ws.Cells[2, 1].Style.Font.Size = 10;
             ws.Cells[2, 1].Style.Font.Italic = true;
-            ws.Cells[2, 1, 2, table.Columns.Count].Merge = true;
+            if (table.Columns.Count >= 1) ws.Cells[2, 1, 2, table.Columns.Count].Merge = true;
 
             int headerRow = 4;
             for (int c = 0; c < table.Columns.Count; c++)
@@ -121,14 +134,21 @@ namespace quotation_generator_back_end.Services
 
             for (int c = 1; c <= table.Columns.Count; c++)
             {
-                ws.Column(c).Width = ws.Column(c).Width < 15 ? 15 : ws.Column(c).Width + 2;
+                try
+                {
+                    ws.Column(c).Width = ws.Column(c).Width < 15 ? 15 : ws.Column(c).Width + 2;
+                }
+                catch
+                {
+                    // ignore any column width errors and continue
+                }
             }
 
             int footerRow = headerRow + table.Rows.Count + 2;
             ws.Cells[footerRow, 1].Value = $"Total Records: {table.Rows.Count}";
             ws.Cells[footerRow, 1].Style.Font.Bold = true;
             ws.Cells[footerRow, 1].Style.Font.Size = 11;
-            ws.Cells[footerRow, 1, footerRow, table.Columns.Count].Merge = true;
+            if (table.Columns.Count >= 1) ws.Cells[footerRow, 1, footerRow, table.Columns.Count].Merge = true;
 
             return package.GetAsByteArray();
         }
