@@ -17,6 +17,10 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Add JWT Service
 builder.Services.AddScoped<IJwtService, JwtService>();
 
+// Register report services
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddScoped<IReportExportService, ReportExportService>();
+
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
 var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey not configured");

@@ -313,3 +313,24 @@ D:\industry-project\react-project\Quotation generation project\quotation-generat
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\obj\Debug\net9.0\quotation-generator-back-end.genruntimeconfig.cache
 D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\obj\Debug\net9.0\ref\quotation-generator-back-end.dll
 D:\Campus Projects\quotation-generator\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\CsvHelper.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\EPPlus.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\EPPlus.Interfaces.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.Abstractions.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.FileExtensions.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Configuration.Json.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.FileProviders.Abstractions.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.FileProviders.Physical.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.FileSystemGlobbing.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.Extensions.Primitives.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\Microsoft.IO.RecyclableMemoryStream.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\PdfSharpCore.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\ICSharpCode.SharpZipLib.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\SixLabors.Fonts.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\SixLabors.ImageSharp.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\System.Security.Cryptography.Pkcs.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\System.Security.Cryptography.Xml.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\de\PdfSharpCore.resources.dll
+D:\industry-project\react-project\Quotation generation project\quotation-generator-back-end\bin\Debug\net9.0\runtimes\win\lib\net9.0\System.Security.Cryptography.Pkcs.dll
