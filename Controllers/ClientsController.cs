@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using quotation_generator_back_end.Data;
 using quotation_generator_back_end.DTOs;
 using quotation_generator_back_end.Models;
+using quotation_generator_back_end.Services;
 
 namespace quotation_generator_back_end.Controllers
 {
@@ -11,10 +12,12 @@ namespace quotation_generator_back_end.Controllers
     public class ClientsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IActivityLogger _activityLogger;
 
-        public ClientsController(ApplicationDbContext context)
+        public ClientsController(ApplicationDbContext context, IActivityLogger activityLogger)
         {
             _context = context;
+            _activityLogger = activityLogger;
         }
 
         // GET: api/Clients
@@ -141,6 +144,8 @@ namespace quotation_generator_back_end.Controllers
 
             _context.Clients.Add(client);
             await _context.SaveChangesAsync();
+
+            await _activityLogger.LogAsync("Client", client.Id, "Create", $"Created client: {client.ClientName}");
 
             return CreatedAtAction(nameof(GetClient), new { id = client.Id }, client);
         }
@@ -276,6 +281,7 @@ namespace quotation_generator_back_end.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                await _activityLogger.LogAsync("Client", id, "Update", $"Updated client: {client.ClientName}");
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -303,8 +309,11 @@ namespace quotation_generator_back_end.Controllers
                 return NotFound(new { message = $"Client with ID {id} not found" });
             }
 
+            var clientName = client.ClientName;
             _context.Clients.Remove(client);
             await _context.SaveChangesAsync();
+
+            await _activityLogger.LogAsync("Client", id, "Delete", $"Deleted client: {clientName}");
 
             return NoContent();
         }
@@ -329,6 +338,11 @@ namespace quotation_generator_back_end.Controllers
 
             _context.Clients.RemoveRange(clients);
             await _context.SaveChangesAsync();
+
+            foreach (var client in clients)
+            {
+                await _activityLogger.LogAsync("Client", client.Id, "Delete", $"Bulk deleted client: {client.ClientName}");
+            }
 
             return Ok(new { message = $"{clients.Count} client(s) deleted successfully" });
         }

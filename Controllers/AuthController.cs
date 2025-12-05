@@ -14,11 +14,13 @@ namespace quotation_generator_back_end.Controllers
     {
         private readonly ApplicationDbContext _context;
         private readonly IJwtService _jwtService;
+        private readonly IActivityLogger _activityLogger;
 
-        public AuthController(ApplicationDbContext context, IJwtService jwtService)
+        public AuthController(ApplicationDbContext context, IJwtService jwtService, IActivityLogger activityLogger)
         {
             _context = context;
             _jwtService = jwtService;
+            _activityLogger = activityLogger;
         }
 
         /// <summary>
@@ -68,6 +70,8 @@ namespace quotation_generator_back_end.Controllers
 
             _context.Users.Add(user);
             await _context.SaveChangesAsync();
+
+            await _activityLogger.LogAsync("User", user.Id, "Create", $"User registered: {user.Email}");
 
             // Generate JWT token
             var token = _jwtService.GenerateToken(user);

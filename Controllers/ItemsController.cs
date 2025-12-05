@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using quotation_generator_back_end.Data;
 using quotation_generator_back_end.DTOs;
 using quotation_generator_back_end.Models;
+using quotation_generator_back_end.Services;
 
 namespace quotation_generator_back_end.Controllers
 {
@@ -11,10 +12,12 @@ namespace quotation_generator_back_end.Controllers
     public class ItemsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IActivityLogger _activityLogger;
 
-        public ItemsController(ApplicationDbContext context)
+        public ItemsController(ApplicationDbContext context, IActivityLogger activityLogger)
         {
             _context = context;
+            _activityLogger = activityLogger;
         }
 
         // GET: api/Items
@@ -105,6 +108,8 @@ namespace quotation_generator_back_end.Controllers
             _context.Items.Add(item);
             await _context.SaveChangesAsync();
 
+            await _activityLogger.LogAsync("Item", item.Id, "Create", $"Created item: {item.Title}");
+
             return CreatedAtAction(nameof(GetItem), new { id = item.Id }, item);
         }
 
@@ -140,6 +145,7 @@ namespace quotation_generator_back_end.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                await _activityLogger.LogAsync("Item", id, "Update", $"Updated item: {item.Title}");
             }
             catch (DbUpdateConcurrencyException)
             {
@@ -167,8 +173,11 @@ namespace quotation_generator_back_end.Controllers
                 return NotFound(new { message = $"Item with ID {id} not found" });
             }
 
+            var itemTitle = item.Title;
             _context.Items.Remove(item);
             await _context.SaveChangesAsync();
+
+            await _activityLogger.LogAsync("Item", id, "Delete", $"Deleted item: {itemTitle}");
 
             return NoContent();
         }
@@ -193,6 +202,11 @@ namespace quotation_generator_back_end.Controllers
 
             _context.Items.RemoveRange(items);
             await _context.SaveChangesAsync();
+
+            foreach (var item in items)
+            {
+                await _activityLogger.LogAsync("Item", item.Id, "Delete", $"Bulk deleted item: {item.Title}");
+            }
 
             return Ok(new { message = $"{items.Count} item(s) deleted successfully" });
         }

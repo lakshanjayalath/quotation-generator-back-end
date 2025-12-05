@@ -4,6 +4,7 @@ using quotation_generator_back_end.Data;
 using quotation_generator_back_end.DTOs;
 using quotation_generator_back_end.Helpers;
 using quotation_generator_back_end.Models;
+using quotation_generator_back_end.Services;
 
 namespace quotation_generator_back_end.Controllers
 {
@@ -12,10 +13,12 @@ namespace quotation_generator_back_end.Controllers
     public class UsersController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IActivityLogger _activityLogger;
 
-        public UsersController(ApplicationDbContext context)
+        public UsersController(ApplicationDbContext context, IActivityLogger activityLogger)
         {
             _context = context;
+            _activityLogger = activityLogger;
         }
 
         // GET: api/Users/5
@@ -113,6 +116,7 @@ namespace quotation_generator_back_end.Controllers
             try
             {
                 await _context.SaveChangesAsync();
+                await _activityLogger.LogAsync("User", id, "Update", $"Updated user settings: {user.Email}");
             }
             catch (DbUpdateConcurrencyException)
             {

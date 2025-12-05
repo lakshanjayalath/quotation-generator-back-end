@@ -16,6 +16,7 @@ namespace quotation_generator_back_end.Data
         public DbSet<Models.User> Users { get; set; }
         public DbSet<Quotation> Quotations { get; set; }
         public DbSet<QuotationItem> QuotationItems { get; set; }
+        public DbSet<ActivityLog> ActivityLogs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -109,6 +110,16 @@ namespace quotation_generator_back_end.Data
                     .WithMany(q => q.Items)
                     .HasForeignKey(qi => qi.QuotationId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // Configure ActivityLog entity
+            modelBuilder.Entity<ActivityLog>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.EntityName).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.ActionType).IsRequired().HasMaxLength(50);
+                entity.Property(e => e.Description).HasMaxLength(500);
+                entity.Property(e => e.PerformedBy).HasMaxLength(200);
             });
         }
     }

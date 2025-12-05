@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using quotation_generator_back_end.Data;
 using quotation_generator_back_end.DTOs.Quotation;
 using quotation_generator_back_end.Models;
+using quotation_generator_back_end.Services;
 
 namespace quotation_generator_back_end.Controllers
 {
@@ -11,10 +12,12 @@ namespace quotation_generator_back_end.Controllers
     public class QuotationsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IActivityLogger _activityLogger;
 
-        public QuotationsController(ApplicationDbContext context)
+        public QuotationsController(ApplicationDbContext context, IActivityLogger activityLogger)
         {
             _context = context;
+            _activityLogger = activityLogger;
         }
 
         /// <summary>
@@ -154,6 +157,8 @@ namespace quotation_generator_back_end.Controllers
             _context.Quotations.Add(quotation);
             await _context.SaveChangesAsync();
 
+            await _activityLogger.LogAsync("Quotation", quotation.Id, "Create", $"Created quotation: {quotation.QuoteNumber}");
+
             var response = MapToResponseDto(quotation);
             return CreatedAtAction(nameof(GetQuotation), new { id = quotation.Id }, response);
         }
@@ -258,6 +263,8 @@ namespace quotation_generator_back_end.Controllers
 
             await _context.SaveChangesAsync();
 
+            await _activityLogger.LogAsync("Quotation", id, "Update", $"Updated quotation: {quotation.QuoteNumber}");
+
             var response = MapToResponseDto(quotation);
             return Ok(response);
         }
@@ -282,6 +289,8 @@ namespace quotation_generator_back_end.Controllers
 
             await _context.SaveChangesAsync();
 
+            await _activityLogger.LogAsync("Quotation", id, "Update", $"Updated quotation status to: {dto.Status}");
+
             var response = MapToResponseDto(quotation);
             return Ok(response);
         }
@@ -301,8 +310,11 @@ namespace quotation_generator_back_end.Controllers
                 return NotFound(new { message = "Quotation not found" });
             }
 
+            var quoteNumber = quotation.QuoteNumber;
             _context.Quotations.Remove(quotation);
             await _context.SaveChangesAsync();
+
+            await _activityLogger.LogAsync("Quotation", id, "Delete", $"Deleted quotation: {quoteNumber}");
 
             return Ok(new { message = "Quotation deleted successfully" });
         }
