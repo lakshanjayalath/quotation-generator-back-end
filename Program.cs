@@ -4,6 +4,14 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using quotation_generator_back_end.Data;
 using quotation_generator_back_end.Services;
+// Added missing using statements for clarity
+using Microsoft.AspNetCore.Builder; 
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using System; 
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Routing;
 
 var builder = WebApplication.CreateBuilder(args); 
 
@@ -23,6 +31,9 @@ builder.Services.AddScoped<IReportExportService, ReportExportService>();
 
 // Register Activity Logger service
 builder.Services.AddScoped<IActivityLogger, ActivityLogger>();
+
+// Register Dashboard service (This part is correct)
+builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
@@ -71,7 +82,12 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI();
+    // In development, the default pipeline includes the DeveloperExceptionPage
 }
+// 🛑 CRITICAL DEBUGGING STEP: Add DeveloperExceptionPage before UseHttpsRedirection 🛑
+// This will force the application to show the full error details in the browser 
+// when the 500 error occurs, even if app.Environment.IsDevelopment() is false.
+app.UseDeveloperExceptionPage(); 
 
 app.UseHttpsRedirection();
 
