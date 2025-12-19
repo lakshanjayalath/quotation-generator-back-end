@@ -4,6 +4,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using quotation_generator_back_end.Data;
 using quotation_generator_back_end.Services;
+using quotation_generator_back_end.Models;
+using quotation_generator_back_end.Helpers;
 // Added missing using statements for clarity
 using Microsoft.AspNetCore.Builder; 
 using Microsoft.Extensions.DependencyInjection;
@@ -99,5 +101,30 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+
+// Seed Admin User
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+    if (!context.Users.Any(u => u.Role == "Admin"))
+    {
+        context.Users.Add(new User
+        {
+            FirstName = "Admin",
+            LastName = "User",
+            Email = "admin@example.com",
+            PasswordHash = PasswordHelper.HashPassword("Admin@123"),
+            Role = "Admin",
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            TwoFactorAuth = false,
+            LoginNotification = true,
+            TaskAssignNotification = true,
+            DisableRecurringPaymentNotification = false
+        });
+        context.SaveChanges();
+        Console.WriteLine("Default admin user created: admin@example.com / Admin@123");
+    }
+}
 
 app.Run();
