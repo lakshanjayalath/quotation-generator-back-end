@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using quotation_generator_back_end.Data;
@@ -5,6 +6,7 @@ using quotation_generator_back_end.DTOs.Auth;
 using quotation_generator_back_end.Helpers;
 using quotation_generator_back_end.Models;
 using quotation_generator_back_end.Services;
+using System.Security.Claims;
 
 namespace quotation_generator_back_end.Controllers
 {
@@ -59,6 +61,7 @@ namespace quotation_generator_back_end.Controllers
                 LastName = request.LastName,
                 Email = request.Email.ToLower(),
                 PasswordHash = PasswordHelper.HashPassword(request.Password),
+                Role = "User",  // Default role for new registrations
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 // Default settings
@@ -87,7 +90,8 @@ namespace quotation_generator_back_end.Controllers
                     Id = user.Id,
                     FirstName = user.FirstName ?? string.Empty,
                     LastName = user.LastName ?? string.Empty,
-                    Email = user.Email ?? string.Empty
+                    Email = user.Email ?? string.Empty,
+                    Role = user.Role ?? "User"
                 }
             });
         }
@@ -137,7 +141,8 @@ namespace quotation_generator_back_end.Controllers
                     Id = user.Id,
                     FirstName = user.FirstName ?? string.Empty,
                     LastName = user.LastName ?? string.Empty,
-                    Email = user.Email ?? string.Empty
+                    Email = user.Email ?? string.Empty,
+                    Role = user.Role ?? "User"
                 }
             });
         }
@@ -181,6 +186,81 @@ namespace quotation_generator_back_end.Controllers
                     FirstName = user.FirstName ?? string.Empty,
                     LastName = user.LastName ?? string.Empty,
                     Email = user.Email ?? string.Empty
+                }
+            });
+        }
+
+        /// <summary>
+        /// Register a new user by an Admin
+        /// </summary>
+        [HttpPost("register-admin")]
+        [Authorize(Roles = "Admin")]
+        public async Task<ActionResult<AdminRegisterResponseDto>> RegisterByAdmin([FromBody] RegisterAdminDto request)
+        {
+            // Check if email already exists
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == request.Email.ToLower());
+
+            if (existingUser != null)
+            {
+                return BadRequest(new AdminRegisterResponseDto
+                {
+                    Success = false,
+                    Message = "An account with this email already exists"
+                });
+            }
+
+            // Validate role
+            if (request.Role != "User" && request.Role != "Admin")
+            {
+                return BadRequest(new AdminRegisterResponseDto
+                {
+                    Success = false,
+                    Message = "Role must be either 'User' or 'Admin'"
+                });
+            }
+
+            // Get the admin who is creating this user
+            var adminEmail = User.FindFirst(ClaimTypes.Email)?.Value ?? "Unknown Admin";
+
+            // Create new user
+            var user = new User
+            {
+                FirstName = request.FirstName,
+                LastName = request.LastName,
+                Email = request.Email.ToLower(),
+                PasswordHash = PasswordHelper.HashPassword(request.Password),
+                Role = request.Role,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                // Default settings
+                TwoFactorAuth = false,
+                LoginNotification = true,
+                TaskAssignNotification = true,
+                DisableRecurringPaymentNotification = false
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            await _activityLogger.LogAsync(
+                "User", 
+                user.Id, 
+                "Created", 
+                $"User '{user.Email}' with role '{user.Role}' created by admin '{adminEmail}'"
+            );
+
+            return StatusCode(201, new AdminRegisterResponseDto
+            {
+                Success = true,
+                Message = "User registered successfully",
+                User = new AdminCreatedUserDto
+                {
+                    Id = user.Id,
+                    Email = user.Email ?? string.Empty,
+                    FirstName = user.FirstName ?? string.Empty,
+                    LastName = user.LastName ?? string.Empty,
+                    Role = user.Role
                 }
             });
         }

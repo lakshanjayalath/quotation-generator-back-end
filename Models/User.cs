@@ -17,6 +17,9 @@ namespace quotation_generator_back_end.Models
         public string? Email { get; set; }
 
         [MaxLength(50)]
+        public string Role { get; set; } = "User";  // "Admin" or "User"
+
+        [MaxLength(50)]
         public string? Language { get; set; }
 
         [MaxLength(20)]
