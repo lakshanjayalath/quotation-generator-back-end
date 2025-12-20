@@ -49,6 +49,7 @@ namespace quotation_generator_back_end.Controllers
                     Description = i.Description,
                     Price = $"{i.Price:N0} LKR",
                     Qty = i.Quantity,
+                    ImageUrl = i.ImageUrl,
                     IsActive = i.IsActive
                 })
                 .ToListAsync();
@@ -101,6 +102,7 @@ namespace quotation_generator_back_end.Controllers
                 Description = createItemDto.Description,
                 Price = createItemDto.Price,
                 Quantity = createItemDto.Quantity,
+                ImageUrl = createItemDto.ImageUrl,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };
@@ -136,6 +138,9 @@ namespace quotation_generator_back_end.Controllers
 
             if (updateItemDto.Quantity.HasValue && updateItemDto.Quantity.Value > 0)
                 item.Quantity = updateItemDto.Quantity.Value;
+
+            if (updateItemDto.ImageUrl != null)
+                item.ImageUrl = updateItemDto.ImageUrl;
 
             if (updateItemDto.IsActive.HasValue)
                 item.IsActive = updateItemDto.IsActive.Value;
