@@ -94,6 +94,12 @@ namespace quotation_generator_back_end.Data
                     .WithMany()
                     .HasForeignKey(q => q.ClientId)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                // Relationship with CreatedBy user (optional)
+                entity.HasOne(q => q.CreatedBy)
+                    .WithMany()
+                    .HasForeignKey(q => q.CreatedById)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // Configure QuotationItem entity

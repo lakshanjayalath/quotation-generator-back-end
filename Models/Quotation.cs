@@ -66,6 +66,10 @@ namespace quotation_generator_back_end.Models
 
         public bool InclusiveTaxes { get; set; }
 
+        // Ownership: user who created this quotation
+        public int? CreatedById { get; set; }
+        public User? CreatedBy { get; set; }
+
         // Navigation property for items
         public List<QuotationItem> Items { get; set; } = new List<QuotationItem>();
 
