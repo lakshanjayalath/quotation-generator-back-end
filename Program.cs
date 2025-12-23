@@ -18,7 +18,12 @@ using Microsoft.AspNetCore.Routing;
 var builder = WebApplication.CreateBuilder(args); 
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
+    });
 
 // Add Entity Framework Core with SQL Server
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -67,7 +72,8 @@ builder.Services.AddCors(options =>
     {
         policy.WithOrigins("http://localhost:3000", "http://localhost:5173", "http://localhost:5174")
               .AllowAnyHeader()
-              .AllowAnyMethod();
+              .AllowAnyMethod()
+              .WithExposedHeaders("X-Total-Count", "X-Page", "X-Page-Size", "X-Total-Pages");
     });
 });
 
@@ -92,6 +98,9 @@ if (app.Environment.IsDevelopment())
 app.UseDeveloperExceptionPage(); 
 
 app.UseHttpsRedirection();
+
+// Enable static file serving for profile images
+app.UseStaticFiles();
 
 // Enable CORS
 app.UseCors("AllowFrontend");
