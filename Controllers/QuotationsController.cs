@@ -94,13 +94,25 @@ namespace quotation_generator_back_end.Controllers
         {
             // Enforce ownership by email
             var userEmail = GetLoggedInUserEmail();
+            var userRole = GetLoggedInUserRole();
             if (string.IsNullOrWhiteSpace(userEmail))
             {
                 return Unauthorized(new { message = "Invalid or missing user email claim" });
             }
 
-            var quotation = await _context.Quotations
-                .Where(q => q.Id == id && q.CreatedByEmail == userEmail)
+            var query = _context.Quotations.AsQueryable();
+
+            // Admin can view all quotations; others can only view their own
+            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(q => q.Id == id);
+            }
+            else
+            {
+                query = query.Where(q => q.Id == id && q.CreatedByEmail == userEmail);
+            }
+
+            var quotation = await query
                 .Include(q => q.Items)
                 .FirstOrDefaultAsync();
 
