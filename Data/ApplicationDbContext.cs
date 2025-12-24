@@ -79,6 +79,7 @@ namespace quotation_generator_back_end.Data
                 entity.Property(e => e.AssignedUser).HasMaxLength(200);
                 entity.Property(e => e.Vendor).HasMaxLength(200);
                 entity.Property(e => e.Design).HasMaxLength(200);
+                entity.Property(e => e.CreatedByEmail).HasMaxLength(200);
                 entity.Property(e => e.Subtotal).HasColumnType("decimal(18,2)");
                 entity.Property(e => e.DiscountAmount).HasColumnType("decimal(18,2)");
                 entity.Property(e => e.Total).HasColumnType("decimal(18,2)");
@@ -89,10 +90,19 @@ namespace quotation_generator_back_end.Data
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
                 entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
 
+                // Index for faster filtering by creator email
+                entity.HasIndex(e => e.CreatedByEmail);
+
                 // Relationship with Client (optional)
                 entity.HasOne(q => q.Client)
                     .WithMany()
                     .HasForeignKey(q => q.ClientId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                // Relationship with CreatedBy user (optional)
+                entity.HasOne(q => q.CreatedBy)
+                    .WithMany()
+                    .HasForeignKey(q => q.CreatedById)
                     .OnDelete(DeleteBehavior.SetNull);
             });
 

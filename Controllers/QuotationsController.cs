@@ -4,11 +4,14 @@ using quotation_generator_back_end.Data;
 using quotation_generator_back_end.DTOs.Quotation;
 using quotation_generator_back_end.Models;
 using quotation_generator_back_end.Services;
+using Microsoft.AspNetCore.Authorization;
+using System.Security.Claims;
 
 namespace quotation_generator_back_end.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
+    [Authorize]
     public class QuotationsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
@@ -28,23 +31,39 @@ namespace quotation_generator_back_end.Controllers
             [FromQuery] string? status = null,
             [FromQuery] string? search = null)
         {
-            var query = _context.Quotations.AsQueryable();
-
-            // Filter by status
-            if (!string.IsNullOrEmpty(status) && status.ToLower() != "all")
+            try
             {
-                query = query.Where(q => q.Status.ToLower() == status.ToLower());
-            }
+                // Extract logged-in user's email
+                var userEmail = GetLoggedInUserEmail();
+                var userRole = GetLoggedInUserRole();
+                if (string.IsNullOrWhiteSpace(userEmail))
+                {
+                    return Unauthorized(new { message = "Invalid or missing user email claim" });
+                }
 
-            // Search by client name or quote number
-            if (!string.IsNullOrEmpty(search))
-            {
-                query = query.Where(q =>
-                    (q.ClientName != null && q.ClientName.ToLower().Contains(search.ToLower())) ||
-                    q.QuoteNumber.ToLower().Contains(search.ToLower()));
-            }
+                var query = _context.Quotations.AsQueryable();
 
-            var quotations = await query
+                // Admin can see all quotations; others see only their own
+                if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
+                {
+                    query = query.Where(q => q.CreatedByEmail == userEmail);
+                }
+
+                // Filter by status
+                if (!string.IsNullOrEmpty(status) && status.ToLower() != "all")
+                {
+                    query = query.Where(q => q.Status.ToLower() == status.ToLower());
+                }
+
+                // Search by client name or quote number
+                if (!string.IsNullOrEmpty(search))
+                {
+                    query = query.Where(q =>
+                        (q.ClientName != null && q.ClientName.ToLower().Contains(search.ToLower())) ||
+                        q.QuoteNumber.ToLower().Contains(search.ToLower()));
+                }
+
+                var quotations = await query
                 .OrderByDescending(q => q.CreatedAt)
                 .Select(q => new QuotationListResponseDto
                 {
@@ -59,7 +78,12 @@ namespace quotation_generator_back_end.Controllers
                 })
                 .ToListAsync();
 
-            return Ok(quotations);
+                return Ok(quotations);
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { message = "An error occurred while fetching quotations", error = ex.Message });
+            }
         }
 
         /// <summary>
@@ -68,9 +92,17 @@ namespace quotation_generator_back_end.Controllers
         [HttpGet("{id}")]
         public async Task<ActionResult<QuotationResponseDto>> GetQuotation(int id)
         {
+            // Enforce ownership by email
+            var userEmail = GetLoggedInUserEmail();
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return Unauthorized(new { message = "Invalid or missing user email claim" });
+            }
+
             var quotation = await _context.Quotations
+                .Where(q => q.Id == id && q.CreatedByEmail == userEmail)
                 .Include(q => q.Items)
-                .FirstOrDefaultAsync(q => q.Id == id);
+                .FirstOrDefaultAsync();
 
             if (quotation == null)
             {
@@ -87,6 +119,11 @@ namespace quotation_generator_back_end.Controllers
         [HttpPost]
         public async Task<ActionResult<QuotationResponseDto>> CreateQuotation([FromBody] CreateQuotationDto dto)
         {
+            var userEmail = GetLoggedInUserEmail();
+            if (string.IsNullOrWhiteSpace(userEmail))
+            {
+                return Unauthorized(new { message = "Invalid or missing user email claim" });
+            }
             // Calculate totals
             decimal subtotal = 0;
             var items = new List<QuotationItem>();
@@ -150,6 +187,7 @@ namespace quotation_generator_back_end.Controllers
                 Design = dto.Design,
                 InclusiveTaxes = dto.InclusiveTaxes,
                 Items = items,
+                CreatedByEmail = userEmail,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -383,6 +421,20 @@ namespace quotation_generator_back_end.Controllers
                 CreatedAt = quotation.CreatedAt,
                 UpdatedAt = quotation.UpdatedAt
             };
+        }
+
+        private string? GetLoggedInUserEmail()
+        {
+            // Prefer ClaimTypes.Email, fallback to "email"
+            return User.FindFirst(ClaimTypes.Email)?.Value
+                ?? User.FindFirst("email")?.Value;
+        }
+
+        private string? GetLoggedInUserRole()
+        {
+            // Prefer ClaimTypes.Role, fallback to "role"
+            return User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value;
         }
     }
 
