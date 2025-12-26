@@ -118,7 +118,13 @@ namespace quotation_generator_back_end.Controllers
             var userId = GetCurrentUserId();
             if (userId == null)
             {
-                return Unauthorized(new { message = "User not authenticated" });
+                // Check if user is authenticated at all
+                if (!User.Identity?.IsAuthenticated ?? true)
+                {
+                    return Unauthorized(new { message = "Not authenticated. Please log in again." });
+                }
+                
+                return Unauthorized(new { message = "User ID not found in token. Token may be invalid or expired." });
             }
 
             var user = await _context.Users.FindAsync(userId.Value);
@@ -423,14 +429,22 @@ namespace quotation_generator_back_end.Controllers
         /// </summary>
         private int? GetCurrentUserId()
         {
+            // Try multiple claim type variations
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier) 
                 ?? User.FindFirst("sub") 
-                ?? User.FindFirst("id");
+                ?? User.FindFirst("id")
+                ?? User.FindFirst("nameid")
+                ?? User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/nameidentifier");
             
             if (userIdClaim != null && int.TryParse(userIdClaim.Value, out int userId))
             {
                 return userId;
             }
+
+            // Log available claims for debugging
+            var availableClaims = string.Join(", ", User.Claims.Select(c => $"{c.Type}={c.Value}"));
+            Console.WriteLine($"[GetCurrentUserId] No valid userId found. Available claims: {availableClaims}");
+            
             return null;
         }
 
