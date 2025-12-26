@@ -77,7 +77,11 @@ namespace quotation_generator_back_end.Controllers
         {
             if (!ModelState.IsValid)
             {
-                return BadRequest(ModelState);
+                return BadRequest(new
+                {
+                    message = "Validation failed for item creation",
+                    errors = GetModelErrors()
+                });
             }
 
             // Validate data
@@ -219,6 +223,14 @@ namespace quotation_generator_back_end.Controllers
         private bool ItemExists(int id)
         {
             return _context.Items.Any(e => e.Id == id);
+        }
+
+        private string[] GetModelErrors()
+        {
+            return ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage)
+                .ToArray();
         }
     }
 }

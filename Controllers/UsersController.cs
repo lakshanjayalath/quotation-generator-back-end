@@ -106,6 +106,15 @@ namespace quotation_generator_back_end.Controllers
         [Authorize]
         public async Task<IActionResult> UpdateProfile([FromBody] UpdateProfileDto dto)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new
+                {
+                    message = "Validation failed for profile update",
+                    errors = GetModelErrors()
+                });
+            }
+
             var userId = GetCurrentUserId();
             if (userId == null)
             {
@@ -162,6 +171,15 @@ namespace quotation_generator_back_end.Controllers
         [Authorize]
         public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordDto dto)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new
+                {
+                    message = "Validation failed for password change",
+                    errors = GetModelErrors()
+                });
+            }
+
             var userId = GetCurrentUserId();
             if (userId == null)
             {
@@ -204,6 +222,15 @@ namespace quotation_generator_back_end.Controllers
         [Authorize]
         public async Task<IActionResult> UpdateNotes([FromBody] UpdateNotesDto dto)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new
+                {
+                    message = "Validation failed for notes update",
+                    errors = GetModelErrors()
+                });
+            }
+
             var userId = GetCurrentUserId();
             if (userId == null)
             {
@@ -232,6 +259,15 @@ namespace quotation_generator_back_end.Controllers
         [Authorize]
         public async Task<ActionResult<ProfileImageResponseDto>> UpdateProfileImage([FromForm] UpdateProfileImageDto dto)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(new ProfileImageResponseDto
+                {
+                    Success = false,
+                    Message = string.Join("; ", GetModelErrors())
+                });
+            }
+
             var userId = GetCurrentUserId();
             if (userId == null)
             {
@@ -396,6 +432,14 @@ namespace quotation_generator_back_end.Controllers
                 return userId;
             }
             return null;
+        }
+
+        private string[] GetModelErrors()
+        {
+            return ModelState.Values
+                .SelectMany(v => v.Errors)
+                .Select(e => string.IsNullOrWhiteSpace(e.ErrorMessage) ? "Invalid value" : e.ErrorMessage)
+                .ToArray();
         }
 
         #endregion

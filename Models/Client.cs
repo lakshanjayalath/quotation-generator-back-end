@@ -1,8 +1,18 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace quotation_generator_back_end.Models
 {
     public class Client
     {
+        [Key]
+        [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
         public int Id { get; set; }
+        
+        // Database-generated Client ID (formatted, e.g., CLT-000001)
+        // This is calculated from the auto-increment ID at database level
+        [MaxLength(50)]
+        public string? ClientIdFormatted { get; set; }
         
         // Client Details
         public string ClientName { get; set; } = string.Empty;
