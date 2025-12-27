@@ -397,6 +397,10 @@ namespace quotation_generator_back_end.Controllers
             var userEmail = (user.Email ?? string.Empty).Trim().ToLower();
             var userFullName = ($"{user.FirstName} {user.LastName}").Trim().ToLower();
 
+            // Normalize pagination to avoid negative offsets breaking results
+            var normalizedPage = page < 1 ? 1 : page;
+            var normalizedPageSize = pageSize < 1 ? 10 : Math.Min(pageSize, 100);
+
             var query = _context.Quotations.Where(q =>
                 (q.CreatedById.HasValue && q.CreatedById == user.Id) ||
                 (!string.IsNullOrEmpty(q.CreatedByEmail) && q.CreatedByEmail.Trim().ToLower() == userEmail) ||
@@ -407,14 +411,30 @@ namespace quotation_generator_back_end.Controllers
             if (!string.IsNullOrEmpty(status))
             {
                 var statusLc = status.Trim().ToLower();
-                query = query.Where(q => !string.IsNullOrEmpty(q.Status) && q.Status.ToLower() == statusLc);
+
+                // If frontend sends "all" or an unrecognized value (like "updated"), skip filtering
+                var knownStatuses = new HashSet<string> { "draft", "sent", "accepted", "declined", "rejected", "expired" };
+                if (statusLc == "all" || !knownStatuses.Contains(statusLc))
+                {
+                    // no-op: return all user-owned quotations
+                }
+                else if (statusLc == "rejected")
+                {
+                    // Treat rejected filter as both declined and rejected statuses
+                    query = query.Where(q => !string.IsNullOrEmpty(q.Status) &&
+                        (q.Status.ToLower() == "declined" || q.Status.ToLower() == "rejected"));
+                }
+                else
+                {
+                    query = query.Where(q => !string.IsNullOrEmpty(q.Status) && q.Status.ToLower() == statusLc);
+                }
             }
 
             var totalCount = await query.CountAsync();
             var quotations = await query
                 .OrderByDescending(q => q.CreatedAt)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
+                .Skip((normalizedPage - 1) * normalizedPageSize)
+                .Take(normalizedPageSize)
                 .Select(q => new QuotationHistoryDto
                 {
                     Id = q.Id,
@@ -426,11 +446,18 @@ namespace quotation_generator_back_end.Controllers
                 .ToListAsync();
 
             Response.Headers.Append("X-Total-Count", totalCount.ToString());
-            Response.Headers.Append("X-Page", page.ToString());
-            Response.Headers.Append("X-Page-Size", pageSize.ToString());
-            Response.Headers.Append("X-Total-Pages", ((int)Math.Ceiling((double)totalCount / pageSize)).ToString());
+            Response.Headers.Append("X-Page", normalizedPage.ToString());
+            Response.Headers.Append("X-Page-Size", normalizedPageSize.ToString());
+            Response.Headers.Append("X-Total-Pages", ((int)Math.Ceiling((double)totalCount / normalizedPageSize)).ToString());
 
-            return Ok(quotations);
+            // Provide a payload shape the frontend already expects (items + total) to avoid empty grids
+            return Ok(new
+            {
+                items = quotations,
+                total = totalCount,
+                page = normalizedPage,
+                pageSize = normalizedPageSize
+            });
         }
 
         /// <summary>
