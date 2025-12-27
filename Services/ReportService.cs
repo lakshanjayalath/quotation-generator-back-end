@@ -370,10 +370,19 @@ namespace quotation_generator_back_end.Services
                     // Apply action type filtering for clients
                     if (actionType != "all")
                     {
+                        _logger.LogInformation($"Filtering Clients by actionType: {actionType}");
                         var clientIds = clients.Select(c => c.Id).ToList();
+                        _logger.LogInformation($"Total clients before filtering: {clients.Count}, IDs: {string.Join(",", clientIds)}");
+                        
                         var clientLogs = await _db.ActivityLogs
                             .Where(log => log.EntityName == "Client" && clientIds.Contains(log.RecordId))
                             .ToListAsync();
+                        
+                        _logger.LogInformation($"Activity logs found for Client entity: {clientLogs.Count}");
+                        if (clientLogs.Count > 0)
+                        {
+                            _logger.LogInformation($"Log details: {string.Join("; ", clientLogs.Select(l => $"ID:{l.RecordId}, Action:{l.ActionType}"))}");
+                        }
 
                         if (actionType == "created" || actionType == "create")
                         {
@@ -382,7 +391,9 @@ namespace quotation_generator_back_end.Services
                                 .Select(log => log.RecordId)
                                 .Distinct()
                                 .ToList();
+                            _logger.LogInformation($"Created IDs found: {createdIds.Count}, IDs: {string.Join(",", createdIds)}");
                             clients = clients.Where(c => createdIds.Contains(c.Id)).ToList();
+                            _logger.LogInformation($"Clients after created filter: {clients.Count}");
                         }
                         else if (actionType == "updated" || actionType == "update")
                         {
@@ -391,7 +402,9 @@ namespace quotation_generator_back_end.Services
                                 .Select(log => log.RecordId)
                                 .Distinct()
                                 .ToList();
+                            _logger.LogInformation($"Updated IDs found: {updatedIds.Count}, IDs: {string.Join(",", updatedIds)}");
                             clients = clients.Where(c => updatedIds.Contains(c.Id)).ToList();
+                            _logger.LogInformation($"Clients after updated filter: {clients.Count}");
                         }
                         else if (actionType == "deleted" || actionType == "delete")
                         {
@@ -400,7 +413,9 @@ namespace quotation_generator_back_end.Services
                                 .Select(log => log.RecordId)
                                 .Distinct()
                                 .ToList();
+                            _logger.LogInformation($"Deleted IDs found: {deletedIds.Count}, IDs: {string.Join(",", deletedIds)}");
                             clients = clients.Where(c => deletedIds.Contains(c.Id) || !c.IsActive).ToList();
+                            _logger.LogInformation($"Clients after deleted filter: {clients.Count}");
                         }
                     }
 
