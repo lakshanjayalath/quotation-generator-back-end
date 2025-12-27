@@ -32,6 +32,12 @@ namespace quotation_generator_back_end.Data
                 entity.Property(e => e.Quantity).IsRequired();
                 entity.Property(e => e.IsActive).HasDefaultValue(true);
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+                // Relationship: Item -> QuotationItems
+                entity.HasMany(i => i.QuotationItems)
+                    .WithOne(qi => qi.Item)
+                    .HasForeignKey(qi => qi.ItemId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // Configure Client entity
@@ -64,6 +70,18 @@ namespace quotation_generator_back_end.Data
                 entity.Property(e => e.PasswordHash).HasMaxLength(200);
                 entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
                 entity.Property(e => e.UpdatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+                // Relationship: User -> CreatedQuotations
+                entity.HasMany(u => u.CreatedQuotations)
+                    .WithOne(q => q.CreatedBy)
+                    .HasForeignKey(q => q.CreatedById)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                // Relationship: User -> ActivityLogs
+                entity.HasMany(u => u.ActivityLogs)
+                    .WithOne(al => al.User)
+                    .HasForeignKey(al => al.UserId)
+                    .OnDelete(DeleteBehavior.NoAction);
             });
 
             // Configure Quotation entity
@@ -101,9 +119,15 @@ namespace quotation_generator_back_end.Data
 
                 // Relationship with CreatedBy user (optional)
                 entity.HasOne(q => q.CreatedBy)
-                    .WithMany()
+                    .WithMany(u => u.CreatedQuotations)
                     .HasForeignKey(q => q.CreatedById)
                     .OnDelete(DeleteBehavior.SetNull);
+
+                // Relationship with Items (one-to-many)
+                entity.HasMany(q => q.Items)
+                    .WithOne(qi => qi.Quotation)
+                    .HasForeignKey(qi => qi.QuotationId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // Configure QuotationItem entity
@@ -120,6 +144,12 @@ namespace quotation_generator_back_end.Data
                     .WithMany(q => q.Items)
                     .HasForeignKey(qi => qi.QuotationId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                // Relationship with Item (optional - for when items are reused)
+                entity.HasOne(qi => qi.Item)
+                    .WithMany(i => i.QuotationItems)
+                    .HasForeignKey(qi => qi.ItemId)
+                    .OnDelete(DeleteBehavior.SetNull);
             });
 
             // Configure ActivityLog entity
@@ -130,6 +160,16 @@ namespace quotation_generator_back_end.Data
                 entity.Property(e => e.ActionType).IsRequired().HasMaxLength(50);
                 entity.Property(e => e.Description).HasMaxLength(500);
                 entity.Property(e => e.PerformedBy).HasMaxLength(200);
+
+                // Relationship with User (optional - for when UserId is set)
+                entity.HasOne(al => al.User)
+                    .WithMany(u => u.ActivityLogs)
+                    .HasForeignKey(al => al.UserId)
+                    .OnDelete(DeleteBehavior.NoAction);
+
+                // Index for faster filtering by entity and action
+                entity.HasIndex(e => new { e.EntityName, e.ActionType });
+                entity.HasIndex(e => e.UserId);
             });
         }
     }

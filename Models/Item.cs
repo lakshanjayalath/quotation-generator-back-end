@@ -11,5 +11,8 @@ namespace quotation_generator_back_end.Models
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public DateTime? UpdatedAt { get; set; }
+
+        // Navigation property: QuotationItems that reference this Item
+        public ICollection<QuotationItem> QuotationItems { get; set; } = new List<QuotationItem>();
     }
 }

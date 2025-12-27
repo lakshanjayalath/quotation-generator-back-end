@@ -88,6 +88,9 @@ namespace quotation_generator_back_end.Models
         public int QuotationId { get; set; }
         public Quotation? Quotation { get; set; }
 
+        public int? ItemId { get; set; }
+        public Item? Item { get; set; }
+
         [MaxLength(200)]
         public string ItemName { get; set; } = string.Empty;
 

@@ -12,10 +12,12 @@ namespace quotation_generator_back_end.Controllers
     public class ActivityLogsController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly ILogger<ActivityLogsController> _logger;
 
-        public ActivityLogsController(ApplicationDbContext context)
+        public ActivityLogsController(ApplicationDbContext context, ILogger<ActivityLogsController> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         /// <summary>
@@ -24,26 +26,65 @@ namespace quotation_generator_back_end.Controllers
         /// <param name="filter">Filter criteria</param>
         /// <returns>List of filtered activity logs</returns>
         [HttpPost("filter")]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> FilterActivityLogs([FromBody] ActivityLogFilterDto filter)
         {
+            _logger.LogInformation($"ActivityLogs Filter - StartDate: {filter?.StartDate}, EndDate: {filter?.EndDate}, ActionType: '{filter?.ActionType}', EntityName: '{filter?.EntityName}'");
             var query = _context.ActivityLogs.AsQueryable();
 
-            // Filter by start date
-            if (filter.StartDate.HasValue)
+            // Parse and filter by start date
+            if (!string.IsNullOrWhiteSpace(filter?.StartDate))
             {
-                query = query.Where(a => a.Timestamp >= filter.StartDate.Value);
+                if (DateTime.TryParse(filter.StartDate, out var startDate))
+                {
+                    query = query.Where(a => a.Timestamp >= startDate);
+                    _logger.LogInformation($"Applied StartDate filter: {startDate}");
+                }
             }
 
-            // Filter by end date
-            if (filter.EndDate.HasValue)
+            // Parse and filter by end date
+            if (!string.IsNullOrWhiteSpace(filter?.EndDate))
             {
-                query = query.Where(a => a.Timestamp <= filter.EndDate.Value);
+                if (DateTime.TryParse(filter.EndDate, out var endDate))
+                {
+                    // Include entire end day
+                    var endOfDay = endDate.AddDays(1).AddSeconds(-1);
+                    query = query.Where(a => a.Timestamp <= endOfDay);
+                    _logger.LogInformation($"Applied EndDate filter: {endOfDay}");
+                }
             }
 
-            // Filter by action type
-            if (!string.IsNullOrWhiteSpace(filter.ActionType))
+            // Filter by action type (normalize values and accept synonyms)
+            if (!string.IsNullOrWhiteSpace(filter?.ActionType))
             {
-                query = query.Where(a => a.ActionType == filter.ActionType);
+                var act = filter.ActionType.Trim().ToLowerInvariant();
+                _logger.LogInformation($"Processing ActionType filter: '{act}'");
+                
+                if (act == "all")
+                {
+                    _logger.LogInformation("ActionType is 'all', no filter applied");
+                }
+                else if (act == "created" || act == "create")
+                {
+                    query = query.Where(a => a.ActionType.ToLower() == "create");
+                    _logger.LogInformation("Applied ActionType filter: Create");
+                }
+                else if (act == "updated" || act == "update")
+                {
+                    query = query.Where(a => a.ActionType.ToLower() == "update");
+                    _logger.LogInformation("Applied ActionType filter: Update");
+                }
+                else if (act == "deleted" || act == "delete")
+                {
+                    query = query.Where(a => a.ActionType.ToLower() == "delete");
+                    _logger.LogInformation("Applied ActionType filter: Delete");
+                }
+                else
+                {
+                    // any other action (e.g., login) matches case-insensitively
+                    query = query.Where(a => a.ActionType.ToLower() == act);
+                    _logger.LogInformation($"Applied ActionType filter: {act}");
+                }
             }
 
             // Filter by entity name
@@ -76,6 +117,7 @@ namespace quotation_generator_back_end.Controllers
         /// </summary>
         /// <returns>List of all activity logs</returns>
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> GetAllActivityLogs()
         {
             var activityLogs = await _context.ActivityLogs
@@ -102,6 +144,7 @@ namespace quotation_generator_back_end.Controllers
         /// <param name="recordId">ID of the specific record</param>
         /// <returns>List of activity logs for the entity</returns>
         [HttpGet("{entityName}/{recordId}")]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> GetActivityLogsForEntity(string entityName, int recordId)
         {
             var activityLogs = await _context.ActivityLogs
