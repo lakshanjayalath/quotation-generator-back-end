@@ -24,5 +24,11 @@ namespace quotation_generator_back_end.Models
         public string? PerformedBy { get; set; }
 
         public DateTime Timestamp { get; set; }
+
+        // Foreign key to User (optional)
+        public int? UserId { get; set; }
+
+        // Navigation property
+        public User? User { get; set; }
     }
 }

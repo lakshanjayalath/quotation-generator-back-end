@@ -80,5 +80,11 @@ namespace quotation_generator_back_end.Models
 
         public DateTime CreatedAt { get; set; }
         public DateTime UpdatedAt { get; set; }
+
+        // Navigation property: Quotations created by this user
+        public ICollection<Quotation> CreatedQuotations { get; set; } = new List<Quotation>();
+
+        // Navigation property: Activity logs performed by this user
+        public ICollection<ActivityLog> ActivityLogs { get; set; } = new List<ActivityLog>();
     }
 }
