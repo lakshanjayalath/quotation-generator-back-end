@@ -54,6 +54,13 @@ namespace quotation_generator_back_end.Services
                 }
             }
 
+            // Get action type filter (All, Created, Updated, Deleted)
+            // Check both Filters.ActionType and Filters.Activity fields, and fallback to root ActionType
+            var actionType = (request?.Filters?.ActionType ?? request?.Filters?.Activity ?? request?.ActionType)?.ToLowerInvariant() ?? "all";
+            
+            // Debug logging
+            _logger.LogInformation($"Report Request - Type: {reportType}, ActionType: {actionType}, ActionTypeField: {request?.Filters?.ActionType}, ActivityField: {request?.Filters?.Activity}, RootActionType: {request?.ActionType}, StartDate: {startDate}, EndDate: {endDate}");
+
             switch (reportType)
             {
                 case "Products":
@@ -75,6 +82,43 @@ namespace quotation_generator_back_end.Services
                             if (endDate.HasValue && it.CreatedAt > endDate.Value) return false;
                             return true;
                         }).ToList();
+                    }
+
+                    // Apply action type filtering for products
+                    if (actionType != "all")
+                    {
+                        var itemIds = items.Select(i => i.Id).ToList();
+                        var productLogs = await _db.ActivityLogs
+                            .Where(log => log.EntityName == "Item" && itemIds.Contains(log.RecordId))
+                            .ToListAsync();
+
+                        if (actionType == "created" || actionType == "create")
+                        {
+                            var createdIds = productLogs
+                                .Where(log => log.ActionType.ToLower() == "create")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            items = items.Where(it => createdIds.Contains(it.Id)).ToList();
+                        }
+                        else if (actionType == "updated" || actionType == "update")
+                        {
+                            var updatedIds = productLogs
+                                .Where(log => log.ActionType.ToLower() == "update")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            items = items.Where(it => updatedIds.Contains(it.Id)).ToList();
+                        }
+                        else if (actionType == "deleted" || actionType == "delete")
+                        {
+                            var deletedIds = productLogs
+                                .Where(log => log.ActionType.ToLower() == "delete")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            items = items.Where(it => deletedIds.Contains(it.Id) || !it.IsActive).ToList();
+                        }
                     }
 
                     foreach (var it in items)
@@ -108,6 +152,43 @@ namespace quotation_generator_back_end.Services
                             if (endDate.HasValue && u.CreatedAt > endDate.Value) return false;
                             return true;
                         }).ToList();
+                    }
+
+                    // Apply action type filtering for users
+                    if (actionType != "all")
+                    {
+                        var userIds = users.Select(u => u.Id).ToList();
+                        var userLogs = await _db.ActivityLogs
+                            .Where(log => log.EntityName == "User" && userIds.Contains(log.RecordId))
+                            .ToListAsync();
+
+                        if (actionType == "created" || actionType == "create")
+                        {
+                            var createdIds = userLogs
+                                .Where(log => log.ActionType.ToLower() == "create")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            users = users.Where(u => createdIds.Contains(u.Id)).ToList();
+                        }
+                        else if (actionType == "updated" || actionType == "update")
+                        {
+                            var updatedIds = userLogs
+                                .Where(log => log.ActionType.ToLower() == "update")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            users = users.Where(u => updatedIds.Contains(u.Id)).ToList();
+                        }
+                        else if (actionType == "deleted" || actionType == "delete")
+                        {
+                            var deletedIds = userLogs
+                                .Where(log => log.ActionType.ToLower() == "delete")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            users = users.Where(u => deletedIds.Contains(u.Id)).ToList();
+                        }
                     }
 
                     foreach (var u in users)
@@ -144,6 +225,43 @@ namespace quotation_generator_back_end.Services
                         }).ToList();
                     }
 
+                    // Apply action type filtering for invoices
+                    if (actionType != "all")
+                    {
+                        var invoiceIds = invoices.Select(q => q.Id).ToList();
+                        var invoiceLogs = await _db.ActivityLogs
+                            .Where(log => log.EntityName == "Quotation" && invoiceIds.Contains(log.RecordId))
+                            .ToListAsync();
+
+                        if (actionType == "created" || actionType == "create")
+                        {
+                            var createdIds = invoiceLogs
+                                .Where(log => log.ActionType.ToLower() == "create")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            invoices = invoices.Where(inv => createdIds.Contains(inv.Id)).ToList();
+                        }
+                        else if (actionType == "updated" || actionType == "update")
+                        {
+                            var updatedIds = invoiceLogs
+                                .Where(log => log.ActionType.ToLower() == "update")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            invoices = invoices.Where(inv => updatedIds.Contains(inv.Id)).ToList();
+                        }
+                        else if (actionType == "deleted" || actionType == "delete")
+                        {
+                            var deletedIds = invoiceLogs
+                                .Where(log => log.ActionType.ToLower() == "delete")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            invoices = invoices.Where(inv => deletedIds.Contains(inv.Id)).ToList();
+                        }
+                    }
+
                     foreach (var inv in invoices)
                     {
                         var rowInv = dt.NewRow();
@@ -176,6 +294,43 @@ namespace quotation_generator_back_end.Services
                             if (endDate.HasValue && q.QuoteDate > endDate.Value) return false;
                             return true;
                         }).ToList();
+                    }
+
+                    // Apply action type filtering for quotes
+                    if (actionType != "all")
+                    {
+                        var quoteIds = quotes.Select(q => q.Id).ToList();
+                        var quoteLogs = await _db.ActivityLogs
+                            .Where(log => log.EntityName == "Quotation" && quoteIds.Contains(log.RecordId))
+                            .ToListAsync();
+
+                        if (actionType == "created" || actionType == "create")
+                        {
+                            var createdIds = quoteLogs
+                                .Where(log => log.ActionType.ToLower() == "create")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            quotes = quotes.Where(q => createdIds.Contains(q.Id)).ToList();
+                        }
+                        else if (actionType == "updated" || actionType == "update")
+                        {
+                            var updatedIds = quoteLogs
+                                .Where(log => log.ActionType.ToLower() == "update")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            quotes = quotes.Where(q => updatedIds.Contains(q.Id)).ToList();
+                        }
+                        else if (actionType == "deleted" || actionType == "delete")
+                        {
+                            var deletedIds = quoteLogs
+                                .Where(log => log.ActionType.ToLower() == "delete")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            quotes = quotes.Where(q => deletedIds.Contains(q.Id)).ToList();
+                        }
                     }
 
                     foreach (var q in quotes)
@@ -212,6 +367,43 @@ namespace quotation_generator_back_end.Services
                         }).ToList();
                     }
 
+                    // Apply action type filtering for clients
+                    if (actionType != "all")
+                    {
+                        var clientIds = clients.Select(c => c.Id).ToList();
+                        var clientLogs = await _db.ActivityLogs
+                            .Where(log => log.EntityName == "Client" && clientIds.Contains(log.RecordId))
+                            .ToListAsync();
+
+                        if (actionType == "created" || actionType == "create")
+                        {
+                            var createdIds = clientLogs
+                                .Where(log => log.ActionType.ToLower() == "create")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            clients = clients.Where(c => createdIds.Contains(c.Id)).ToList();
+                        }
+                        else if (actionType == "updated" || actionType == "update")
+                        {
+                            var updatedIds = clientLogs
+                                .Where(log => log.ActionType.ToLower() == "update")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            clients = clients.Where(c => updatedIds.Contains(c.Id)).ToList();
+                        }
+                        else if (actionType == "deleted" || actionType == "delete")
+                        {
+                            var deletedIds = clientLogs
+                                .Where(log => log.ActionType.ToLower() == "delete")
+                                .Select(log => log.RecordId)
+                                .Distinct()
+                                .ToList();
+                            clients = clients.Where(c => deletedIds.Contains(c.Id) || !c.IsActive).ToList();
+                        }
+                    }
+
                     foreach (var c in clients)
                     {
                         var rc = dt.NewRow();
@@ -245,6 +437,23 @@ namespace quotation_generator_back_end.Services
                             if (endDate.HasValue && log.Timestamp > endDate.Value) return false;
                             return true;
                         }).ToList();
+                    }
+
+                    // Apply action type filtering for activity logs (by ActionType)
+                    if (actionType != "all")
+                    {
+                        if (actionType == "created" || actionType == "create")
+                        {
+                            activityLogs = activityLogs.Where(log => log.ActionType.ToLower() == "create").ToList();
+                        }
+                        else if (actionType == "updated" || actionType == "update")
+                        {
+                            activityLogs = activityLogs.Where(log => log.ActionType.ToLower() == "update").ToList();
+                        }
+                        else if (actionType == "deleted" || actionType == "delete")
+                        {
+                            activityLogs = activityLogs.Where(log => log.ActionType.ToLower() == "delete").ToList();
+                        }
                     }
 
                     foreach (var log in activityLogs)

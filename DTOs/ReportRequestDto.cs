@@ -3,6 +3,7 @@ namespace quotation_generator_back_end.DTOs
     public class ReportFiltersDto
     {
         public string? Activity { get; set; }
+        public string? ActionType { get; set; }
         public string? Status { get; set; }
         public string? Client { get; set; }
         public string? User { get; set; }
@@ -25,6 +26,8 @@ namespace quotation_generator_back_end.DTOs
     public class ReportRequestDto
     {
         public string ReportType { get; set; } = "Activity";
+        // Fallback in case frontend sends action type at root
+        public string? ActionType { get; set; }
         public ReportFiltersDto? Filters { get; set; }
         public ReportOptionsDto? Options { get; set; }
     }
