@@ -24,6 +24,7 @@ namespace quotation_generator_back_end.Controllers
         /// <param name="filter">Filter criteria</param>
         /// <returns>List of filtered activity logs</returns>
         [HttpPost("filter")]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> FilterActivityLogs([FromBody] ActivityLogFilterDto filter)
         {
             var query = _context.ActivityLogs.AsQueryable();
@@ -76,6 +77,7 @@ namespace quotation_generator_back_end.Controllers
         /// </summary>
         /// <returns>List of all activity logs</returns>
         [HttpGet]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> GetAllActivityLogs()
         {
             var activityLogs = await _context.ActivityLogs
@@ -102,6 +104,7 @@ namespace quotation_generator_back_end.Controllers
         /// <param name="recordId">ID of the specific record</param>
         /// <returns>List of activity logs for the entity</returns>
         [HttpGet("{entityName}/{recordId}")]
+        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> GetActivityLogsForEntity(string entityName, int recordId)
         {
             var activityLogs = await _context.ActivityLogs

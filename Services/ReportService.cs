@@ -144,10 +144,24 @@ namespace quotation_generator_back_end.Services
                 case "Activity":
                 default:
                     dt.Columns.Add("Date");
-                    dt.Columns.Add("User");
+                    dt.Columns.Add("Entity");
+                    dt.Columns.Add("Record ID", typeof(int));
                     dt.Columns.Add("Action");
                     dt.Columns.Add("Description");
-                    dt.Columns.Add("Status");
+                    dt.Columns.Add("Performed By");
+
+                    var activityLogs = await _db.ActivityLogs.ToListAsync();
+                    foreach (var log in activityLogs)
+                    {
+                        var rowLog = dt.NewRow();
+                        rowLog["Date"] = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
+                        rowLog["Entity"] = log.EntityName ?? string.Empty;
+                        rowLog["Record ID"] = log.RecordId;
+                        rowLog["Action"] = log.ActionType ?? string.Empty;
+                        rowLog["Description"] = log.Description ?? string.Empty;
+                        rowLog["Performed By"] = log.PerformedBy ?? string.Empty;
+                        dt.Rows.Add(rowLog);
+                    }
                     break;
             }
 
