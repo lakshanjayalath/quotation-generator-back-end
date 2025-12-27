@@ -393,12 +393,21 @@ namespace quotation_generator_back_end.Controllers
                 return NotFound(new { message = "User not found" });
             }
 
-            var query = _context.Quotations
-                .Where(q => q.AssignedUser == user.Email || q.AssignedUser == $"{user.FirstName} {user.LastName}");
+            // Limit to quotations created/owned by this user (CreatedById/CreatedByEmail/AssignedUser match), case-insensitive
+            var userEmail = (user.Email ?? string.Empty).Trim().ToLower();
+            var userFullName = ($"{user.FirstName} {user.LastName}").Trim().ToLower();
+
+            var query = _context.Quotations.Where(q =>
+                (q.CreatedById.HasValue && q.CreatedById == user.Id) ||
+                (!string.IsNullOrEmpty(q.CreatedByEmail) && q.CreatedByEmail.Trim().ToLower() == userEmail) ||
+                (!string.IsNullOrEmpty(q.AssignedUser) &&
+                    (q.AssignedUser.Trim().ToLower() == userEmail || q.AssignedUser.Trim().ToLower() == userFullName))
+            );
 
             if (!string.IsNullOrEmpty(status))
             {
-                query = query.Where(q => q.Status == status);
+                var statusLc = status.Trim().ToLower();
+                query = query.Where(q => !string.IsNullOrEmpty(q.Status) && q.Status.ToLower() == statusLc);
             }
 
             var totalCount = await query.CountAsync();
@@ -422,6 +431,48 @@ namespace quotation_generator_back_end.Controllers
             Response.Headers.Append("X-Total-Pages", ((int)Math.Ceiling((double)totalCount / pageSize)).ToString());
 
             return Ok(quotations);
+        }
+
+        /// <summary>
+        /// Get summary counts for the current user's quotations
+        /// </summary>
+        [HttpGet("profile/quotations/summary")]
+        [Authorize]
+        public async Task<IActionResult> GetQuotationSummary()
+        {
+            var userId = GetCurrentUserId();
+            if (userId == null)
+            {
+                return Unauthorized(new { message = "User not authenticated" });
+            }
+
+            var user = await _context.Users.FindAsync(userId.Value);
+            if (user == null)
+            {
+                return NotFound(new { message = "User not found" });
+            }
+
+            var query = _context.Quotations.Where(q =>
+                (q.CreatedById.HasValue && q.CreatedById == user.Id) ||
+                (!string.IsNullOrEmpty(q.CreatedByEmail) && q.CreatedByEmail == user.Email) ||
+                (!string.IsNullOrEmpty(q.AssignedUser) &&
+                    (q.AssignedUser == user.Email || q.AssignedUser == $"{user.FirstName} {user.LastName}"))
+            );
+
+            var total = await query.CountAsync();
+            var sent = await query.CountAsync(q => q.Status.ToLower() == "sent");
+            var accepted = await query.CountAsync(q => q.Status.ToLower() == "accepted");
+            var declined = await query.CountAsync(q => q.Status.ToLower() == "declined" || q.Status.ToLower() == "rejected");
+            var expired = await query.CountAsync(q => q.Status.ToLower() == "expired");
+
+            return Ok(new
+            {
+                total,
+                sent,
+                accepted,
+                declined,
+                expired
+            });
         }
 
         /// <summary>
