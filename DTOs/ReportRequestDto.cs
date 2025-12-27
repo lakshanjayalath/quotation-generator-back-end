@@ -5,6 +5,7 @@ namespace quotation_generator_back_end.DTOs
         public string? Activity { get; set; }
         public string? ActionType { get; set; }
         public string? Status { get; set; }
+        public string? QuotationType { get; set; }
         public string? Client { get; set; }
         public string? User { get; set; }
         public string? StartDate { get; set; }

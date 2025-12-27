@@ -286,23 +286,54 @@ namespace quotation_generator_back_end.Services
                     var quotes = await _db.Quotations.Include(q => q.Client).ToListAsync();
                     
                     // Apply date filtering for quotes (by QuoteDate)
-                    if (startDate.HasValue || endDate.HasValue)
+                    var quoteStartDate = startDate?.Date;
+                    var quoteEndDate = endDate?.Date.AddDays(1).AddSeconds(-1);
+                    if (quoteStartDate.HasValue || quoteEndDate.HasValue)
                     {
                         quotes = quotes.Where(q =>
                         {
-                            if (startDate.HasValue && q.QuoteDate < startDate.Value) return false;
-                            if (endDate.HasValue && q.QuoteDate > endDate.Value) return false;
+                            if (quoteStartDate.HasValue && q.QuoteDate < quoteStartDate.Value) return false;
+                            if (quoteEndDate.HasValue && q.QuoteDate > quoteEndDate.Value) return false;
                             return true;
                         }).ToList();
+                    }
+
+                    // Apply quotation type filtering (Status)
+                    var quotationType = (request?.Filters?.QuotationType ?? request?.Filters?.Status)?.Trim();
+                    _logger.LogInformation($"QuotationType filter: '{quotationType}'");
+                    if (!string.IsNullOrWhiteSpace(quotationType) && !quotationType.Equals("all", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var qt = quotationType.ToLowerInvariant();
+                        // Support grouped/synonym statuses like "rejected" (declined/expired/rejected)
+                        if (qt == "rejected")
+                        {
+                            var rejectedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "declined", "expired", "rejected" };
+                            quotes = quotes.Where(q => !string.IsNullOrWhiteSpace(q.Status) && rejectedSet.Contains(q.Status)).ToList();
+                        }
+                        else
+                        {
+                            quotes = quotes.Where(q => !string.IsNullOrWhiteSpace(q.Status) && q.Status.Equals(quotationType, StringComparison.OrdinalIgnoreCase)).ToList();
+                        }
+                        _logger.LogInformation($"Quotes after quotation type filter '{qt}': {quotes.Count}");
                     }
 
                     // Apply action type filtering for quotes
                     if (actionType != "all")
                     {
+                        _logger.LogInformation($"Filtering Quotes by actionType: {actionType}");
                         var quoteIds = quotes.Select(q => q.Id).ToList();
+                        _logger.LogInformation($"Total quotes before filtering: {quotes.Count}, IDs: {string.Join(",", quoteIds)}");
+
+                        // Accept both "Quotation" and "Quote" entity names from activity logs
                         var quoteLogs = await _db.ActivityLogs
-                            .Where(log => log.EntityName == "Quotation" && quoteIds.Contains(log.RecordId))
+                            .Where(log => (log.EntityName == "Quotation" || log.EntityName == "Quote") && quoteIds.Contains(log.RecordId))
                             .ToListAsync();
+
+                        _logger.LogInformation($"Activity logs found for Quote entity: {quoteLogs.Count}");
+                        if (quoteLogs.Count > 0)
+                        {
+                            _logger.LogInformation($"Log details: {string.Join("; ", quoteLogs.Select(l => $"ID:{l.RecordId}, Action:{l.ActionType}"))}");
+                        }
 
                         if (actionType == "created" || actionType == "create")
                         {
@@ -311,7 +342,9 @@ namespace quotation_generator_back_end.Services
                                 .Select(log => log.RecordId)
                                 .Distinct()
                                 .ToList();
+                            _logger.LogInformation($"Created IDs found: {createdIds.Count}, IDs: {string.Join(",", createdIds)}");
                             quotes = quotes.Where(q => createdIds.Contains(q.Id)).ToList();
+                            _logger.LogInformation($"Quotes after created filter: {quotes.Count}");
                         }
                         else if (actionType == "updated" || actionType == "update")
                         {
@@ -320,7 +353,9 @@ namespace quotation_generator_back_end.Services
                                 .Select(log => log.RecordId)
                                 .Distinct()
                                 .ToList();
+                            _logger.LogInformation($"Updated IDs found: {updatedIds.Count}, IDs: {string.Join(",", updatedIds)}");
                             quotes = quotes.Where(q => updatedIds.Contains(q.Id)).ToList();
+                            _logger.LogInformation($"Quotes after updated filter: {quotes.Count}");
                         }
                         else if (actionType == "deleted" || actionType == "delete")
                         {
@@ -329,7 +364,9 @@ namespace quotation_generator_back_end.Services
                                 .Select(log => log.RecordId)
                                 .Distinct()
                                 .ToList();
+                            _logger.LogInformation($"Deleted IDs found: {deletedIds.Count}, IDs: {string.Join(",", deletedIds)}");
                             quotes = quotes.Where(q => deletedIds.Contains(q.Id)).ToList();
+                            _logger.LogInformation($"Quotes after deleted filter: {quotes.Count}");
                         }
                     }
 

@@ -25,7 +25,7 @@ namespace quotation_generator_back_end.Controllers
         {
             try
             {
-                _logger.LogInformation($"ReportsController.Generate - ReportType: {request?.ReportType}, Filters.ActionType: '{request?.Filters?.ActionType}', Filters.Activity: '{request?.Filters?.Activity}', RootActionType: '{request?.ActionType}'");
+                _logger.LogInformation($"ReportsController.Generate - ReportType: {request?.ReportType}, Filters.ActionType: '{request?.Filters?.ActionType}', Filters.Activity: '{request?.Filters?.Activity}', Filters.QuotationType: '{request?.Filters?.QuotationType}', RootActionType: '{request?.ActionType}'");
                 var rows = await _reportService.GenerateReportAsync(request);
                 return Ok(rows);
             }
