@@ -34,6 +34,26 @@ namespace quotation_generator_back_end.Services
             var dt = new DataTable();
             var reportType = request?.ReportType ?? "Activity";
 
+            // Parse date filters
+            DateTime? startDate = null;
+            DateTime? endDate = null;
+
+            if (request?.Filters != null)
+            {
+                if (!string.IsNullOrWhiteSpace(request.Filters.StartDate) && 
+                    DateTime.TryParse(request.Filters.StartDate, out var start))
+                {
+                    startDate = start;
+                }
+
+                if (!string.IsNullOrWhiteSpace(request.Filters.EndDate) && 
+                    DateTime.TryParse(request.Filters.EndDate, out var end))
+                {
+                    // Set end date to end of day
+                    endDate = end.AddDays(1).AddSeconds(-1);
+                }
+            }
+
             switch (reportType)
             {
                 case "Products":
@@ -42,8 +62,21 @@ namespace quotation_generator_back_end.Services
                     dt.Columns.Add("Category");
                     dt.Columns.Add("Price", typeof(decimal));
                     dt.Columns.Add("Stock", typeof(int));
+                    dt.Columns.Add("Created Date");
 
                     var items = await _db.Items.ToListAsync();
+                    
+                    // Apply date filtering for products (by CreatedAt)
+                    if (startDate.HasValue || endDate.HasValue)
+                    {
+                        items = items.Where(it =>
+                        {
+                            if (startDate.HasValue && it.CreatedAt < startDate.Value) return false;
+                            if (endDate.HasValue && it.CreatedAt > endDate.Value) return false;
+                            return true;
+                        }).ToList();
+                    }
+
                     foreach (var it in items)
                     {
                         var row = dt.NewRow();
@@ -52,6 +85,7 @@ namespace quotation_generator_back_end.Services
                         row["Category"] = it.Description ?? string.Empty;
                         row["Price"] = it.Price;
                         row["Stock"] = it.Quantity;
+                        row["Created Date"] = it.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss");
                         dt.Rows.Add(row);
                     }
                     break;
@@ -61,17 +95,29 @@ namespace quotation_generator_back_end.Services
                     dt.Columns.Add("Email");
                     dt.Columns.Add("Role");
                     dt.Columns.Add("Status");
-                    dt.Columns.Add("Last Login");
+                    dt.Columns.Add("Created Date");
 
                     var users = await _db.Users.ToListAsync();
+                    
+                    // Apply date filtering for users (by CreatedAt)
+                    if (startDate.HasValue || endDate.HasValue)
+                    {
+                        users = users.Where(u =>
+                        {
+                            if (startDate.HasValue && u.CreatedAt < startDate.Value) return false;
+                            if (endDate.HasValue && u.CreatedAt > endDate.Value) return false;
+                            return true;
+                        }).ToList();
+                    }
+
                     foreach (var u in users)
                     {
                         var r = dt.NewRow();
                         r["User Name"] = (u.FirstName + " " + u.LastName).Trim();
                         r["Email"] = u.Email ?? string.Empty;
-                        r["Role"] = "User";
+                        r["Role"] = u.Role ?? "User";
                         r["Status"] = "Active";
-                        r["Last Login"] = "-";
+                        r["Created Date"] = u.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss");
                         dt.Rows.Add(r);
                     }
                     break;
@@ -86,6 +132,18 @@ namespace quotation_generator_back_end.Services
 
                     // Map Quotation rows as Invoices if present in DB (example: treat quotations as invoices)
                     var invoices = await _db.Quotations.Include(q => q.Client).ToListAsync();
+                    
+                    // Apply date filtering for invoices (by QuoteDate)
+                    if (startDate.HasValue || endDate.HasValue)
+                    {
+                        invoices = invoices.Where(inv =>
+                        {
+                            if (startDate.HasValue && inv.QuoteDate < startDate.Value) return false;
+                            if (endDate.HasValue && inv.QuoteDate > endDate.Value) return false;
+                            return true;
+                        }).ToList();
+                    }
+
                     foreach (var inv in invoices)
                     {
                         var rowInv = dt.NewRow();
@@ -108,6 +166,18 @@ namespace quotation_generator_back_end.Services
                     dt.Columns.Add("Expiry Date");
 
                     var quotes = await _db.Quotations.Include(q => q.Client).ToListAsync();
+                    
+                    // Apply date filtering for quotes (by QuoteDate)
+                    if (startDate.HasValue || endDate.HasValue)
+                    {
+                        quotes = quotes.Where(q =>
+                        {
+                            if (startDate.HasValue && q.QuoteDate < startDate.Value) return false;
+                            if (endDate.HasValue && q.QuoteDate > endDate.Value) return false;
+                            return true;
+                        }).ToList();
+                    }
+
                     foreach (var q in quotes)
                     {
                         var rq = dt.NewRow();
@@ -127,8 +197,21 @@ namespace quotation_generator_back_end.Services
                     dt.Columns.Add("Phone");
                     dt.Columns.Add("Address");
                     dt.Columns.Add("Status");
+                    dt.Columns.Add("Created Date");
 
                     var clients = await _db.Clients.ToListAsync();
+                    
+                    // Apply date filtering for clients (by CreatedDate)
+                    if (startDate.HasValue || endDate.HasValue)
+                    {
+                        clients = clients.Where(c =>
+                        {
+                            if (startDate.HasValue && c.CreatedDate < startDate.Value) return false;
+                            if (endDate.HasValue && c.CreatedDate > endDate.Value) return false;
+                            return true;
+                        }).ToList();
+                    }
+
                     foreach (var c in clients)
                     {
                         var rc = dt.NewRow();
@@ -137,6 +220,7 @@ namespace quotation_generator_back_end.Services
                         rc["Phone"] = c.ClientContactNumber ?? c.Phone ?? string.Empty;
                         rc["Address"] = c.ClientAddress ?? string.Empty;
                         rc["Status"] = c.IsActive ? "Active" : "Inactive";
+                        rc["Created Date"] = c.CreatedDate.ToString("yyyy-MM-dd HH:mm:ss");
                         dt.Rows.Add(rc);
                     }
                     break;
@@ -151,6 +235,18 @@ namespace quotation_generator_back_end.Services
                     dt.Columns.Add("Performed By");
 
                     var activityLogs = await _db.ActivityLogs.ToListAsync();
+                    
+                    // Apply date filtering for activity logs (by Timestamp)
+                    if (startDate.HasValue || endDate.HasValue)
+                    {
+                        activityLogs = activityLogs.Where(log =>
+                        {
+                            if (startDate.HasValue && log.Timestamp < startDate.Value) return false;
+                            if (endDate.HasValue && log.Timestamp > endDate.Value) return false;
+                            return true;
+                        }).ToList();
+                    }
+
                     foreach (var log in activityLogs)
                     {
                         var rowLog = dt.NewRow();
