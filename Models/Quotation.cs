@@ -15,6 +15,7 @@ namespace quotation_generator_back_end.Models
         [MaxLength(100)]
         public string? PoNumber { get; set; }
 
+        // 🔹 Client relationship
         public int? ClientId { get; set; }
         public Client? Client { get; set; }
 
@@ -28,7 +29,7 @@ namespace quotation_generator_back_end.Models
         public decimal PartialDeposit { get; set; }
 
         [MaxLength(20)]
-        public string DiscountType { get; set; } = "amount"; // "amount" or "percentage"
+        public string DiscountType { get; set; } = "amount"; // amount | percentage
 
         [Column(TypeName = "decimal(18,2)")]
         public decimal Discount { get; set; }
@@ -46,9 +47,10 @@ namespace quotation_generator_back_end.Models
         public decimal NetAmount { get; set; }
 
         [MaxLength(50)]
-        public string Status { get; set; } = "Draft"; // Draft, Sent, Accepted, Expired, Declined
+        public string Status { get; set; } = "Draft"; 
+        // Draft, Sent, Accepted, Expired, Declined
 
-        // Settings
+        // 🔹 Settings
         [MaxLength(200)]
         public string? Project { get; set; }
 
@@ -66,28 +68,40 @@ namespace quotation_generator_back_end.Models
 
         public bool InclusiveTaxes { get; set; }
 
-        // Ownership: user who created this quotation
+        // 🔐 OWNERSHIP (CRITICAL FOR USER ISOLATION)
+
+        /// <summary>
+        /// User ID of the person who created this quotation.
+        /// Used to restrict visibility for normal users.
+        /// </summary>
         public int? CreatedById { get; set; }
+
+        [ForeignKey(nameof(CreatedById))]
         public User? CreatedBy { get; set; }
 
-        // Email of the user who created this quotation (for isolation)
+        /// <summary>
+        /// Email snapshot of creator (optional but useful for audits)
+        /// </summary>
         [MaxLength(200)]
         public string? CreatedByEmail { get; set; }
 
-        // Navigation property for items
-        public List<QuotationItem> Items { get; set; } = new List<QuotationItem>();
+        // 🔹 Quotation Items
+        public List<QuotationItem> Items { get; set; } = new();
 
-        public DateTime CreatedAt { get; set; }
-        public DateTime UpdatedAt { get; set; }
+        // 🔹 Audit fields
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
     }
 
     public class QuotationItem
     {
         public int Id { get; set; }
 
+        // 🔹 Quotation relationship
         public int QuotationId { get; set; }
         public Quotation? Quotation { get; set; }
 
+        // 🔹 Item relationship
         public int? ItemId { get; set; }
         public Item? Item { get; set; }
 

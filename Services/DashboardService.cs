@@ -1,127 +1,137 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using quotation_generator_back_end.Data;
-
-using quotation_generator_back_end.DTOs.Dashboard; 
+using quotation_generator_back_end.DTOs.Dashboard;
+using System.Security.Claims;
 
 namespace quotation_generator_back_end.Services
 {
     public class DashboardService : IDashboardService
     {
         private readonly ApplicationDbContext _context;
+        private readonly IHttpContextAccessor _httpContextAccessor;
 
-        public DashboardService(ApplicationDbContext context)
+        public DashboardService(
+            ApplicationDbContext context,
+            IHttpContextAccessor httpContextAccessor)
         {
             _context = context;
+            _httpContextAccessor = httpContextAccessor;
         }
 
         public async Task<DashboardResponseDto> GetDashboardDataAsync()
         {
-            var dashboard = new DashboardResponseDto
+            return new DashboardResponseDto
             {
-                Overview = await GetOverviewAsync("This Month"), 
+                Overview = await GetOverviewAsync("This Month"),
                 RecentClients = await GetRecentClientsAsync(5),
                 RecentActivities = await GetRecentActivitiesAsync(5),
                 RecentQuotations = await GetRecentQuotationsAsync(5)
             };
-
-            return dashboard;
         }
+
+        // ---------------- OVERVIEW ----------------
 
         public async Task<OverviewDto> GetOverviewAsync(string period)
         {
-            // 1. Determine the start date
             DateTime startDate;
-            Func<DateTime, string> nameSelector; 
-            
-            switch (period.ToLower())
+            Func<DateTime, string> nameSelector;
+
+            switch (period.ToLowerInvariant())
             {
                 case "this week":
-                    // Start of the current week (Monday)
                     int diff = (7 + (DateTime.Today.DayOfWeek - DayOfWeek.Monday)) % 7;
-                    startDate = DateTime.Today.AddDays(-1 * diff).Date;
-                    // Group by day name (Mon, Tue, etc.)
-                    nameSelector = date => date.ToString("ddd");
+                    startDate = DateTime.Today.AddDays(-diff);
+                    nameSelector = d => d.ToString("ddd");
                     break;
+
                 case "this year":
-                    // Start of the current year
                     startDate = new DateTime(DateTime.Today.Year, 1, 1);
-                    // Group by month name (Jan, Feb, etc.)
-                    nameSelector = date => date.ToString("MMM");
+                    nameSelector = d => d.ToString("MMM");
                     break;
-                case "this month":
+
                 default:
-                    // Start of the current month
                     startDate = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
-                    // Group by day number (1, 2, 3, etc.)
-                    nameSelector = date => date.Day.ToString();
+                    nameSelector = d => d.Day.ToString();
                     break;
             }
 
-            // 2. Fetch Aggregate Metrics (Filtered by period)
-            var quotationsInPeriod = _context.Quotations.Where(q => q.QuoteDate >= startDate);
-            
-            var totalClients = await _context.Clients.CountAsync(); 
-            var totalQuotations = await quotationsInPeriod.CountAsync();
-            var totalItems = await _context.Items.CountAsync(); 
-            
-            var totalQuotationAmount = await quotationsInPeriod.SumAsync(q => (decimal?)q.Total) ?? 0m;
-            
-            var pendingQuotations = await quotationsInPeriod.CountAsync(q => q.Status.ToLower() == "sent"); // Assuming "Sent" is pending
-            
-            // 🟢 FIX 1: Use "accepted" to match the frontend status
-            var approvedQuotations = await quotationsInPeriod.CountAsync(q => q.Status.ToLower() == "accepted");
-            
-            // 🟢 FIX 2: Use "declined" and "rejected" to cover all possibilities for the RejectedQuotations count
-            var rejectedQuotations = await quotationsInPeriod.CountAsync(q => q.Status.ToLower() == "declined" || q.Status.ToLower() == "rejected" || q.Status.ToLower() == "expired");
+            var isAdmin = IsAdmin();
+            var userId = GetCurrentUserId();
+            var email = NormalizeEmail(GetCurrentUserEmail());
 
+            var quotations = _context.Quotations
+                .Where(q => q.QuoteDate >= startDate)
+                .AsQueryable();
 
-            // 3. Fetch Time-Series Data for the Quotation Pipeline Chart (QuotationPipelineData)
-            
-            // Group all relevant quotes by the appropriate date interval (day, month, or year)
-            var pipelinePoints = await quotationsInPeriod
-                .GroupBy(q => q.QuoteDate.Date) // Group by the date part first
+            if (!isAdmin && (userId.HasValue || email != null))
+            {
+                quotations = quotations.Where(q =>
+                    (userId.HasValue && q.CreatedById == userId)
+                    || (email != null && q.CreatedByEmail != null && q.CreatedByEmail.ToLower() == email)
+                    || (email != null && q.AssignedUser != null && q.AssignedUser.ToLower() == email));
+            }
+
+            var totalClients = await _context.Clients.CountAsync();
+            var totalQuotations = await quotations.CountAsync();
+            var totalItems = await _context.Items.CountAsync();
+
+            var totalQuotationAmount =
+                await quotations.SumAsync(q => (decimal?)q.Total) ?? 0m;
+
+            var pending = await quotations.CountAsync(q => q.Status.ToLower() == "sent");
+            var approved = await quotations.CountAsync(q => q.Status.ToLower() == "accepted");
+            var rejected = await quotations.CountAsync(q =>
+                q.Status.ToLower() == "declined" || q.Status.ToLower() == "rejected");
+
+            var grouped = await quotations
+                .GroupBy(q => q.QuoteDate.Date)
                 .ToListAsync();
 
-            // Project the grouped data into the QuotationDataPoint DTO
-            var quotationPipelineData = pipelinePoints
+            var pipeline = grouped
                 .Select(g => new QuotationDataPoint
                 {
-                    // Use the nameSelector delegate to format the date correctly (e.g., "Jan" or "01")
-                    Name = nameSelector(g.Key), 
-                    Draft = g.Count(q => q.Status.ToLower() == "draft"),
-                    Sent = g.Count(q => q.Status.ToLower() == "sent"),
-                    
-                    // 🟢 FIX 3: Corrected statuses for chart breakdown
-                    Accepted = g.Count(q => q.Status.ToLower() == "accepted"),
-                    Rejected = g.Count(q => q.Status.ToLower() == "declined" || q.Status.ToLower() == "rejected" || q.Status.ToLower() == "expired")
+                    Name = nameSelector(g.Key),
+                    Draft = g.Count(x => x.Status.ToLower() == "draft"),
+                    Sent = g.Count(x => x.Status.ToLower() == "sent"),
+                    Accepted = g.Count(x => x.Status.ToLower() == "accepted"),
+                    Rejected = g.Count(x => x.Status.ToLower() == "declined"),
+                    Expired = g.Count(x => x.Status.ToLower() == "expired")
                 })
-                .OrderBy(p => p.Name)
+                .OrderBy(x => x.Name)
                 .ToList();
-            
-            // 4. Return the complete OverviewDto
+
             return new OverviewDto
             {
                 TotalClients = totalClients,
                 TotalQuotations = totalQuotations,
                 TotalItems = totalItems,
                 TotalQuotationAmount = totalQuotationAmount,
-                PendingQuotations = pendingQuotations,
-                ApprovedQuotations = approvedQuotations,
-                RejectedQuotations = rejectedQuotations,
-                QuotationPipelineData = quotationPipelineData 
+                PendingQuotations = pending,
+                ApprovedQuotations = approved,
+                RejectedQuotations = rejected,
+                QuotationPipelineData = pipeline
             };
         }
 
-        // --- Other methods remain unchanged ---
+        // ---------------- RECENT CLIENTS ----------------
 
         public async Task<List<RecentClientDto>> GetRecentClientsAsync(int limit = 5)
         {
-            var recentClients = await _context.Clients
-                .OrderByDescending(c => c.CreatedDate)
+            var isAdmin = IsAdmin();
+            var email = NormalizeEmail(GetCurrentUserEmail());
+
+            var query = _context.Clients.AsQueryable();
+
+            if (!isAdmin && email != null)
+            {
+                query = query.Where(c =>
+                    c.AssignedUser != null &&
+                    c.AssignedUser.ToLower() == email);
+            }
+
+            return await query
+                .OrderByDescending(c => c.CreatedDate) // 🔴 FIXED
                 .Take(limit)
                 .Select(c => new RecentClientDto
                 {
@@ -133,13 +143,27 @@ namespace quotation_generator_back_end.Services
                     CreatedDate = c.CreatedDate
                 })
                 .ToListAsync();
-
-            return recentClients;
         }
+
+        // ---------------- RECENT ACTIVITIES ----------------
 
         public async Task<List<RecentActivityDto>> GetRecentActivitiesAsync(int limit = 5)
         {
-            var recentActivities = await _context.ActivityLogs
+            var isAdmin = IsAdmin();
+            var userId = GetCurrentUserId();
+            var email = NormalizeEmail(GetCurrentUserEmail());
+
+            var query = _context.ActivityLogs.AsQueryable();
+
+            if (!isAdmin)
+            {
+                query = query.Where(a =>
+                    (userId.HasValue && a.UserId == userId)
+                    || (email != null && a.PerformedBy != null && a.PerformedBy.ToLower() == email)
+                    || (email != null && a.PerformedByEmail != null && a.PerformedByEmail.ToLower() == email));
+            }
+
+            return await query
                 .OrderByDescending(a => a.Timestamp)
                 .Take(limit)
                 .Select(a => new RecentActivityDto
@@ -153,14 +177,28 @@ namespace quotation_generator_back_end.Services
                     Timestamp = a.Timestamp
                 })
                 .ToListAsync();
-
-            return recentActivities;
         }
+
+        // ---------------- RECENT QUOTATIONS ----------------
 
         public async Task<List<RecentQuotationDto>> GetRecentQuotationsAsync(int limit = 5)
         {
-            var recentQuotations = await _context.Quotations
-                .OrderByDescending(q => q.QuoteDate)
+            var isAdmin = IsAdmin();
+            var userId = GetCurrentUserId();
+            var email = NormalizeEmail(GetCurrentUserEmail());
+
+            var query = _context.Quotations.AsQueryable();
+
+            if (!isAdmin && (userId.HasValue || email != null))
+            {
+                query = query.Where(q =>
+                    (userId.HasValue && q.CreatedById == userId)
+                    || (email != null && q.CreatedByEmail != null && q.CreatedByEmail.ToLower() == email)
+                    || (email != null && q.AssignedUser != null && q.AssignedUser.ToLower() == email));
+            }
+
+            return await query
+                .OrderByDescending(q => q.QuoteDate) // 🔴 FIXED
                 .Take(limit)
                 .Select(q => new RecentQuotationDto
                 {
@@ -173,8 +211,39 @@ namespace quotation_generator_back_end.Services
                     ValidUntil = q.ValidUntil
                 })
                 .ToListAsync();
+        }
 
-            return recentQuotations;
+        // ---------------- HELPERS ----------------
+
+        private int? GetCurrentUserId()
+        {
+            var value = _httpContextAccessor.HttpContext?.User
+                ?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+
+            return int.TryParse(value, out var id) ? id : null;
+        }
+
+        private string? GetCurrentUserEmail()
+        {
+            return _httpContextAccessor.HttpContext?.User
+                ?.FindFirst(ClaimTypes.Email)?.Value
+                ?? _httpContextAccessor.HttpContext?.User
+                ?.FindFirst("email")?.Value;
+        }
+
+        private bool IsAdmin()
+        {
+            var role = _httpContextAccessor.HttpContext?.User
+                ?.FindFirst(ClaimTypes.Role)?.Value;
+
+            return string.Equals(role, "Admin", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private static string? NormalizeEmail(string? email)
+        {
+            return string.IsNullOrWhiteSpace(email)
+                ? null
+                : email.Trim().ToLowerInvariant();
         }
     }
 }

@@ -23,9 +23,6 @@ namespace quotation_generator_back_end.Controllers
             _activityLogger = activityLogger;
         }
 
-        /// <summary>
-        /// Get all quotations with optional filtering
-        /// </summary>
         [HttpGet]
         public async Task<ActionResult<IEnumerable<QuotationListResponseDto>>> GetQuotations(
             [FromQuery] string? status = null,
@@ -33,50 +30,42 @@ namespace quotation_generator_back_end.Controllers
         {
             try
             {
-                // Extract logged-in user's email
                 var userEmail = GetLoggedInUserEmail();
                 var userRole = GetLoggedInUserRole();
                 if (string.IsNullOrWhiteSpace(userEmail))
-                {
                     return Unauthorized(new { message = "Invalid or missing user email claim" });
-                }
 
                 var query = _context.Quotations.AsQueryable();
 
-                // Admin can see all quotations; others see only their own
+                // Role-based filtering
                 if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-                {
                     query = query.Where(q => q.CreatedByEmail == userEmail);
-                }
 
-                // Filter by status
+                // Status filter
                 if (!string.IsNullOrEmpty(status) && status.ToLower() != "all")
-                {
                     query = query.Where(q => q.Status.ToLower() == status.ToLower());
-                }
 
-                // Search by client name or quote number
+                // Search filter
                 if (!string.IsNullOrEmpty(search))
-                {
                     query = query.Where(q =>
                         (q.ClientName != null && q.ClientName.ToLower().Contains(search.ToLower())) ||
                         q.QuoteNumber.ToLower().Contains(search.ToLower()));
-                }
 
+                // Order by Id ascending
                 var quotations = await query
-                .OrderByDescending(q => q.CreatedAt)
-                .Select(q => new QuotationListResponseDto
-                {
-                    Id = q.Id,
-                    Status = q.Status,
-                    QuoteNumber = q.QuoteNumber,
-                    ClientName = q.ClientName,
-                    Total = q.Total,
-                    NetAmount = q.NetAmount,
-                    QuoteDate = q.QuoteDate,
-                    ValidUntil = q.ValidUntil
-                })
-                .ToListAsync();
+                    .OrderBy(q => q.Id) // ascending order
+                    .Select(q => new QuotationListResponseDto
+                    {
+                        Id = q.Id,
+                        Status = q.Status,
+                        QuoteNumber = q.QuoteNumber,
+                        ClientName = q.ClientName,
+                        Total = q.Total,
+                        NetAmount = q.NetAmount,
+                        QuoteDate = q.QuoteDate, // non-nullable DateTime
+                        ValidUntil = q.ValidUntil
+                    })
+                    .ToListAsync();
 
                 return Ok(quotations);
             }
@@ -86,60 +75,41 @@ namespace quotation_generator_back_end.Controllers
             }
         }
 
-        /// <summary>
-        /// Get a single quotation by ID
-        /// </summary>
         [HttpGet("{id}")]
         public async Task<ActionResult<QuotationResponseDto>> GetQuotation(int id)
         {
-            // Enforce ownership by email
             var userEmail = GetLoggedInUserEmail();
             var userRole = GetLoggedInUserRole();
             if (string.IsNullOrWhiteSpace(userEmail))
-            {
                 return Unauthorized(new { message = "Invalid or missing user email claim" });
-            }
 
-            var query = _context.Quotations.AsQueryable();
+            var query = _context.Quotations.Include(q => q.Items).AsQueryable();
 
-            // Admin can view all quotations; others can only view their own
-            if (string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
-            {
-                query = query.Where(q => q.Id == id);
-            }
-            else
-            {
+            if (!string.Equals(userRole, "Admin", StringComparison.OrdinalIgnoreCase))
                 query = query.Where(q => q.Id == id && q.CreatedByEmail == userEmail);
-            }
+            else
+                query = query.Where(q => q.Id == id);
 
-            var quotation = await query
-                .Include(q => q.Items)
-                .FirstOrDefaultAsync();
+            var quotation = await query.FirstOrDefaultAsync();
 
             if (quotation == null)
-            {
                 return NotFound(new { message = "Quotation not found" });
-            }
 
-            var response = MapToResponseDto(quotation);
-            return Ok(response);
+            return Ok(MapToResponseDto(quotation));
         }
 
-        /// <summary>
-        /// Create a new quotation
-        /// </summary>
         [HttpPost]
         public async Task<ActionResult<QuotationResponseDto>> CreateQuotation([FromBody] CreateQuotationDto dto)
         {
-            var userEmail = GetLoggedInUserEmail();
+            var userEmail = GetLoggedInUserEmail()?.Trim().ToLower();
             if (string.IsNullOrWhiteSpace(userEmail))
-            {
                 return Unauthorized(new { message = "Invalid or missing user email claim" });
-            }
-            // Calculate totals
+
+            var userIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            int userId = int.TryParse(userIdClaim, out var parsedId) ? parsedId : 0;
+
             decimal subtotal = 0;
             var items = new List<QuotationItem>();
-
             foreach (var itemDto in dto.Items)
             {
                 var lineTotal = itemDto.UnitCost * itemDto.Quantity;
@@ -155,20 +125,12 @@ namespace quotation_generator_back_end.Controllers
                 });
             }
 
-            // Calculate discount
-            decimal discountAmount = 0;
-            if (dto.DiscountType?.ToLower() == "percentage")
-            {
-                discountAmount = subtotal * (dto.Discount / 100);
-            }
-            else
-            {
-                discountAmount = dto.Discount;
-            }
+            decimal discountAmount = dto.DiscountType?.ToLower() == "percentage"
+                ? subtotal * (dto.Discount / 100)
+                : dto.Discount;
 
             var total = subtotal - discountAmount;
 
-            // Get client name if ClientId is provided
             string? clientName = dto.ClientName;
             if (dto.ClientId.HasValue && string.IsNullOrEmpty(clientName))
             {
@@ -190,7 +152,7 @@ namespace quotation_generator_back_end.Controllers
                 Subtotal = subtotal,
                 DiscountAmount = discountAmount,
                 Total = total,
-                NetAmount = total, // Can be adjusted for taxes
+                NetAmount = total,
                 Status = "Draft",
                 Project = dto.Project,
                 AssignedUser = dto.AssignedUser,
@@ -200,6 +162,7 @@ namespace quotation_generator_back_end.Controllers
                 InclusiveTaxes = dto.InclusiveTaxes,
                 Items = items,
                 CreatedByEmail = userEmail,
+                CreatedById = userId,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
@@ -209,71 +172,39 @@ namespace quotation_generator_back_end.Controllers
 
             await _activityLogger.LogAsync("Quotation", quotation.Id, "Create", $"Created quotation: {quotation.QuoteNumber}");
 
-            var response = MapToResponseDto(quotation);
-            return CreatedAtAction(nameof(GetQuotation), new { id = quotation.Id }, response);
+            return CreatedAtAction(nameof(GetQuotation), new { id = quotation.Id }, MapToResponseDto(quotation));
         }
 
-        /// <summary>
-        /// Update an existing quotation
-        /// </summary>
         [HttpPut("{id}")]
         public async Task<ActionResult<QuotationResponseDto>> UpdateQuotation(int id, [FromBody] UpdateQuotationDto dto)
         {
-            var quotation = await _context.Quotations
-                .Include(q => q.Items)
-                .FirstOrDefaultAsync(q => q.Id == id);
-
+            var quotation = await _context.Quotations.Include(q => q.Items).FirstOrDefaultAsync(q => q.Id == id);
             if (quotation == null)
-            {
                 return NotFound(new { message = "Quotation not found" });
-            }
 
-            // Update basic fields
-            if (!string.IsNullOrEmpty(dto.QuoteNumber))
-                quotation.QuoteNumber = dto.QuoteNumber;
-            if (dto.PoNumber != null)
-                quotation.PoNumber = dto.PoNumber;
-            if (dto.ClientId.HasValue)
-                quotation.ClientId = dto.ClientId;
-            if (dto.ClientName != null)
-                quotation.ClientName = dto.ClientName;
-            if (dto.QuoteDate.HasValue)
-                quotation.QuoteDate = dto.QuoteDate.Value;
-            if (dto.ValidUntil.HasValue)
-                quotation.ValidUntil = dto.ValidUntil;
-            if (dto.PartialDeposit.HasValue)
-                quotation.PartialDeposit = dto.PartialDeposit.Value;
-            if (!string.IsNullOrEmpty(dto.DiscountType))
-                quotation.DiscountType = dto.DiscountType;
-            if (dto.Discount.HasValue)
-                quotation.Discount = dto.Discount.Value;
-            if (!string.IsNullOrEmpty(dto.Status))
-                quotation.Status = dto.Status;
+            if (!string.IsNullOrEmpty(dto.QuoteNumber)) quotation.QuoteNumber = dto.QuoteNumber;
+            if (dto.PoNumber != null) quotation.PoNumber = dto.PoNumber;
+            if (dto.ClientId.HasValue) quotation.ClientId = dto.ClientId;
+            if (dto.ClientName != null) quotation.ClientName = dto.ClientName;
+            if (dto.QuoteDate.HasValue) quotation.QuoteDate = dto.QuoteDate.Value;
+            if (dto.ValidUntil != null) quotation.ValidUntil = dto.ValidUntil;
+            if (dto.PartialDeposit.HasValue) quotation.PartialDeposit = dto.PartialDeposit.Value;
+            if (!string.IsNullOrEmpty(dto.DiscountType)) quotation.DiscountType = dto.DiscountType;
+            if (dto.Discount.HasValue) quotation.Discount = dto.Discount.Value;
+            if (!string.IsNullOrEmpty(dto.Status)) quotation.Status = dto.Status;
 
-            // Update settings
-            if (dto.Project != null)
-                quotation.Project = dto.Project;
-            if (dto.AssignedUser != null)
-                quotation.AssignedUser = dto.AssignedUser;
-            if (dto.ExchangeRate.HasValue)
-                quotation.ExchangeRate = dto.ExchangeRate;
-            if (dto.Vendor != null)
-                quotation.Vendor = dto.Vendor;
-            if (dto.Design != null)
-                quotation.Design = dto.Design;
-            if (dto.InclusiveTaxes.HasValue)
-                quotation.InclusiveTaxes = dto.InclusiveTaxes.Value;
+            if (dto.Project != null) quotation.Project = dto.Project;
+            if (dto.AssignedUser != null) quotation.AssignedUser = dto.AssignedUser;
+            if (dto.ExchangeRate.HasValue) quotation.ExchangeRate = dto.ExchangeRate;
+            if (dto.Vendor != null) quotation.Vendor = dto.Vendor;
+            if (dto.Design != null) quotation.Design = dto.Design;
+            if (dto.InclusiveTaxes.HasValue) quotation.InclusiveTaxes = dto.InclusiveTaxes.Value;
 
-            // Update items if provided
             if (dto.Items != null)
             {
-                // Remove old items
                 _context.QuotationItems.RemoveRange(quotation.Items);
-
-                // Add new items
                 decimal subtotal = 0;
                 var newItems = new List<QuotationItem>();
-
                 foreach (var itemDto in dto.Items)
                 {
                     var lineTotal = itemDto.UnitCost * itemDto.Quantity;
@@ -293,16 +224,9 @@ namespace quotation_generator_back_end.Controllers
                 quotation.Items = newItems;
                 quotation.Subtotal = subtotal;
 
-                // Recalculate discount
-                decimal discountAmount = 0;
-                if (quotation.DiscountType?.ToLower() == "percentage")
-                {
-                    discountAmount = subtotal * (quotation.Discount / 100);
-                }
-                else
-                {
-                    discountAmount = quotation.Discount;
-                }
+                decimal discountAmount = quotation.DiscountType?.ToLower() == "percentage"
+                    ? subtotal * (quotation.Discount / 100)
+                    : quotation.Discount;
 
                 quotation.DiscountAmount = discountAmount;
                 quotation.Total = subtotal - discountAmount;
@@ -310,88 +234,49 @@ namespace quotation_generator_back_end.Controllers
             }
 
             quotation.UpdatedAt = DateTime.UtcNow;
-
             await _context.SaveChangesAsync();
-
             await _activityLogger.LogAsync("Quotation", id, "Update", $"Updated quotation: {quotation.QuoteNumber}");
 
-            var response = MapToResponseDto(quotation);
-            return Ok(response);
+            return Ok(MapToResponseDto(quotation));
         }
 
-        /// <summary>
-        /// Update quotation status
-        /// </summary>
         [HttpPatch("{id}/status")]
         public async Task<ActionResult<QuotationResponseDto>> UpdateQuotationStatus(int id, [FromBody] UpdateStatusDto dto)
         {
-            var quotation = await _context.Quotations
-                .Include(q => q.Items)
-                .FirstOrDefaultAsync(q => q.Id == id);
-
-            if (quotation == null)
-            {
-                return NotFound(new { message = "Quotation not found" });
-            }
+            var quotation = await _context.Quotations.Include(q => q.Items).FirstOrDefaultAsync(q => q.Id == id);
+            if (quotation == null) return NotFound(new { message = "Quotation not found" });
 
             quotation.Status = dto.Status;
             quotation.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-
             await _activityLogger.LogAsync("Quotation", id, "Update", $"Updated quotation status to: {dto.Status}");
 
-            var response = MapToResponseDto(quotation);
-            return Ok(response);
+            return Ok(MapToResponseDto(quotation));
         }
 
-        /// <summary>
-        /// Delete a quotation
-        /// </summary>
         [HttpDelete("{id}")]
         public async Task<ActionResult> DeleteQuotation(int id)
         {
-            var quotation = await _context.Quotations
-                .Include(q => q.Items)
-                .FirstOrDefaultAsync(q => q.Id == id);
+            var quotation = await _context.Quotations.Include(q => q.Items).FirstOrDefaultAsync(q => q.Id == id);
+            if (quotation == null) return NotFound(new { message = "Quotation not found" });
 
-            if (quotation == null)
-            {
-                return NotFound(new { message = "Quotation not found" });
-            }
-
-            var quoteNumber = quotation.QuoteNumber;
             _context.Quotations.Remove(quotation);
             await _context.SaveChangesAsync();
-
-            await _activityLogger.LogAsync("Quotation", id, "Delete", $"Deleted quotation: {quoteNumber}");
+            await _activityLogger.LogAsync("Quotation", id, "Delete", $"Deleted quotation: {quotation.QuoteNumber}");
 
             return Ok(new { message = "Quotation deleted successfully" });
         }
 
-        /// <summary>
-        /// Get next quote number
-        /// </summary>
         [HttpGet("next-number")]
         public async Task<ActionResult<object>> GetNextQuoteNumber()
         {
-            var lastQuotation = await _context.Quotations
-                .OrderByDescending(q => q.Id)
-                .FirstOrDefaultAsync();
-
+            var lastQuotation = await _context.Quotations.OrderByDescending(q => q.Id).FirstOrDefaultAsync();
             int nextNumber = 1;
-            if (lastQuotation != null)
-            {
-                // Try to parse the last quote number
-                if (int.TryParse(lastQuotation.QuoteNumber, out int lastNumber))
-                {
-                    nextNumber = lastNumber + 1;
-                }
-                else
-                {
-                    nextNumber = lastQuotation.Id + 1;
-                }
-            }
+            if (lastQuotation != null && int.TryParse(lastQuotation.QuoteNumber, out int lastNum))
+                nextNumber = lastNum + 1;
+            else if (lastQuotation != null)
+                nextNumber = lastQuotation.Id + 1;
 
             return Ok(new { nextNumber = nextNumber.ToString("D4") });
         }
@@ -435,19 +320,11 @@ namespace quotation_generator_back_end.Controllers
             };
         }
 
-        private string? GetLoggedInUserEmail()
-        {
-            // Prefer ClaimTypes.Email, fallback to "email"
-            return User.FindFirst(ClaimTypes.Email)?.Value
-                ?? User.FindFirst("email")?.Value;
-        }
+        private string? GetLoggedInUserEmail() =>
+            User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value;
 
-        private string? GetLoggedInUserRole()
-        {
-            // Prefer ClaimTypes.Role, fallback to "role"
-            return User.FindFirst(ClaimTypes.Role)?.Value
-                ?? User.FindFirst("role")?.Value;
-        }
+        private string? GetLoggedInUserRole() =>
+            User.FindFirst(ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value;
     }
 
     public class UpdateStatusDto

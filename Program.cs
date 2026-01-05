@@ -6,16 +6,15 @@ using quotation_generator_back_end.Data;
 using quotation_generator_back_end.Services;
 using quotation_generator_back_end.Models;
 using quotation_generator_back_end.Helpers;
-// Added missing using statements for clarity
-using Microsoft.AspNetCore.Builder; 
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
-using System; 
+using System;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Routing;
 
-var builder = WebApplication.CreateBuilder(args); 
+var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddControllers()
@@ -24,6 +23,9 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
         options.JsonSerializerOptions.PropertyNameCaseInsensitive = true;
     });
+
+// Access HttpContext inside services (e.g., activity logging)
+builder.Services.AddHttpContextAccessor();
 
 // Add Entity Framework Core with SQL Server
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -39,12 +41,24 @@ builder.Services.AddScoped<IReportExportService, ReportExportService>();
 // Register Activity Logger service
 builder.Services.AddScoped<IActivityLogger, ActivityLogger>();
 
-// Register Dashboard service (This part is correct)
+// Register Dashboard service
 builder.Services.AddScoped<IDashboardService, DashboardService>();
 
 // Configure JWT Authentication
 var jwtSettings = builder.Configuration.GetSection("JwtSettings");
-var secretKey = jwtSettings["SecretKey"] ?? throw new InvalidOperationException("JWT SecretKey not configured");
+if (!jwtSettings.Exists())
+{
+    throw new InvalidOperationException("JWT settings section is missing in appsettings.json");
+}
+
+var secretKey = jwtSettings["SecretKey"];
+if (string.IsNullOrWhiteSpace(secretKey))
+{
+    throw new InvalidOperationException("JWT SecretKey not configured");
+}
+
+var issuer = jwtSettings["Issuer"];
+var audience = jwtSettings["Audience"];
 
 builder.Services.AddAuthentication(options =>
 {
@@ -59,8 +73,8 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = true,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtSettings["Issuer"],
-        ValidAudience = jwtSettings["Audience"],
+        ValidIssuer = issuer,
+        ValidAudience = audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey))
     };
 });
@@ -77,35 +91,25 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// OpenAPI / Swagger
 builder.Services.AddOpenApi();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Configure HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
     app.UseSwagger();
     app.UseSwaggerUI();
-    // In development, the default pipeline includes the DeveloperExceptionPage
 }
-// 🛑 CRITICAL DEBUGGING STEP: Add DeveloperExceptionPage before UseHttpsRedirection 🛑
-// This will force the application to show the full error details in the browser 
-// when the 500 error occurs, even if app.Environment.IsDevelopment() is false.
-app.UseDeveloperExceptionPage(); 
+app.UseDeveloperExceptionPage();
 
 app.UseHttpsRedirection();
-
-// Enable static file serving for profile images
 app.UseStaticFiles();
-
-// Enable CORS
 app.UseCors("AllowFrontend");
-
-// Add Authentication & Authorization
 app.UseAuthentication();
 app.UseAuthorization();
 

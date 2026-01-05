@@ -20,5 +20,7 @@ namespace quotation_generator_back_end.DTOs.Dashboard
         
         // Count of quotations that have been formally rejected or marked as lost
         public int Rejected { get; set; }
+
+        public int Expired { get; set; }
     }
 }

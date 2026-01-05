@@ -10,6 +10,7 @@ namespace quotation_generator_back_end.DTOs.Dashboard
     public class OverviewDto
     {
         // High-level summary KPIs (Quotation Focused)
+
         public int TotalClients { get; set; }
         public int TotalQuotations { get; set; }
         public int TotalItems { get; set; }
@@ -25,6 +26,8 @@ namespace quotation_generator_back_end.DTOs.Dashboard
         
         // Count of quotations that have been rejected/lost
         public int RejectedQuotations { get; set; }
+
+        public int ExpiredQuotations { get; set; }
 
         // 🛑 This property holds the structured data for the Quotation Pipeline Bar Chart 🛑
         public List<QuotationDataPoint> QuotationPipelineData { get; set; } = new List<QuotationDataPoint>();

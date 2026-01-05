@@ -15,17 +15,23 @@ namespace quotation_generator_back_end.Models
 
         [Required]
         [MaxLength(50)]
-        public string ActionType { get; set; } = string.Empty; // Create, Update, Delete
+        public string ActionType { get; set; } = string.Empty; // e.g., Create, Update, Delete
 
         [MaxLength(500)]
         public string? Description { get; set; }
 
         [MaxLength(200)]
-        public string? PerformedBy { get; set; }
+        public string PerformedBy { get; set; } = "System";
 
-        public DateTime Timestamp { get; set; }
+        [MaxLength(50)]
+        public string? PerformedByRole { get; set; }
 
-        // Foreign key to User (optional)
+        [MaxLength(200)]
+        public string? PerformedByEmail { get; set; }
+
+        public DateTime Timestamp { get; set; } = DateTime.UtcNow;
+
+        // Optional FK to User
         public int? UserId { get; set; }
 
         // Navigation property
