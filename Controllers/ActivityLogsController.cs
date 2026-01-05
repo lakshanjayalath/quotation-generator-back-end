@@ -1,8 +1,10 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using quotation_generator_back_end.Data;
 using quotation_generator_back_end.DTOs.ActivityLog;
+using quotation_generator_back_end.Models;
 
 namespace quotation_generator_back_end.Controllers
 {
@@ -20,83 +22,85 @@ namespace quotation_generator_back_end.Controllers
             _logger = logger;
         }
 
-        /// <summary>
-        /// Filter activity logs by date range and action type
-        /// </summary>
-        /// <param name="filter">Filter criteria</param>
-        /// <returns>List of filtered activity logs</returns>
-        [HttpPost("filter")]
-        [AllowAnonymous]
-        public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> FilterActivityLogs([FromBody] ActivityLogFilterDto filter)
+        [HttpGet("my-recent")]
+        public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> GetMyRecentActivities([FromQuery] int limit = 5)
         {
-            _logger.LogInformation($"ActivityLogs Filter - StartDate: {filter?.StartDate}, EndDate: {filter?.EndDate}, ActionType: '{filter?.ActionType}', EntityName: '{filter?.EntityName}'");
+            var userId = GetLoggedInUserId();
+            var email = GetLoggedInUserEmail()?.Trim().ToLowerInvariant();
+
+            if (!userId.HasValue && string.IsNullOrWhiteSpace(email))
+                return Unauthorized(new { message = "Invalid or missing user identity claims" });
+
             var query = _context.ActivityLogs.AsQueryable();
 
-            // Parse and filter by start date
-            if (!string.IsNullOrWhiteSpace(filter?.StartDate))
+            // Match by UserId OR by email in PerformedBy, PerformedByEmail
+            if (userId.HasValue && !string.IsNullOrWhiteSpace(email))
             {
-                if (DateTime.TryParse(filter.StartDate, out var startDate))
-                {
-                    query = query.Where(a => a.Timestamp >= startDate);
-                    _logger.LogInformation($"Applied StartDate filter: {startDate}");
-                }
+                query = query.Where(a => 
+                    a.UserId == userId || 
+                    (a.PerformedByEmail != null && a.PerformedByEmail.ToLower() == email) ||
+                    (a.PerformedBy != null && a.PerformedBy.ToLower() == email));
+            }
+            else if (userId.HasValue)
+            {
+                query = query.Where(a => a.UserId == userId);
+            }
+            else if (!string.IsNullOrWhiteSpace(email))
+            {
+                query = query.Where(a => 
+                    (a.PerformedByEmail != null && a.PerformedByEmail.ToLower() == email) ||
+                    (a.PerformedBy != null && a.PerformedBy.ToLower() == email));
             }
 
-            // Parse and filter by end date
-            if (!string.IsNullOrWhiteSpace(filter?.EndDate))
-            {
-                if (DateTime.TryParse(filter.EndDate, out var endDate))
+            var activities = await query
+                .OrderByDescending(a => a.Timestamp)
+                .Take(limit)
+                .Select(a => new ActivityLogResponseDto
                 {
-                    // Include entire end day
-                    var endOfDay = endDate.AddDays(1).AddSeconds(-1);
-                    query = query.Where(a => a.Timestamp <= endOfDay);
-                    _logger.LogInformation($"Applied EndDate filter: {endOfDay}");
-                }
-            }
+                    Id = a.Id,
+                    EntityName = a.EntityName,
+                    RecordId = a.RecordId,
+                    ActionType = a.ActionType,
+                    Description = a.Description,
+                    PerformedBy = a.PerformedBy,
+                    Timestamp = a.Timestamp
+                }).ToListAsync();
 
-            // Filter by action type (normalize values and accept synonyms)
+            return Ok(activities);
+        }
+
+        [HttpPost("filter")]
+        public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> FilterActivityLogs([FromBody] ActivityLogFilterDto filter)
+        {
+            var query = _context.ActivityLogs.Include(a => a.User).AsQueryable();
+            var isAdmin = string.Equals(GetLoggedInUserRole(), "Admin", StringComparison.OrdinalIgnoreCase);
+
+            if (!string.IsNullOrWhiteSpace(filter?.StartDate) && DateTime.TryParse(filter.StartDate, out var startDate))
+                query = query.Where(a => a.Timestamp >= startDate);
+
+            if (!string.IsNullOrWhiteSpace(filter?.EndDate) && DateTime.TryParse(filter.EndDate, out var endDate))
+                query = query.Where(a => a.Timestamp <= endDate.AddDays(1).AddSeconds(-1));
+
             if (!string.IsNullOrWhiteSpace(filter?.ActionType))
             {
                 var act = filter.ActionType.Trim().ToLowerInvariant();
-                _logger.LogInformation($"Processing ActionType filter: '{act}'");
-                
-                if (act == "all")
-                {
-                    _logger.LogInformation("ActionType is 'all', no filter applied");
-                }
-                else if (act == "created" || act == "create")
-                {
+                if (act == "create" || act == "created")
                     query = query.Where(a => a.ActionType.ToLower() == "create");
-                    _logger.LogInformation("Applied ActionType filter: Create");
-                }
-                else if (act == "updated" || act == "update")
-                {
+                else if (act == "update" || act == "updated")
                     query = query.Where(a => a.ActionType.ToLower() == "update");
-                    _logger.LogInformation("Applied ActionType filter: Update");
-                }
-                else if (act == "deleted" || act == "delete")
-                {
+                else if (act == "delete" || act == "deleted")
                     query = query.Where(a => a.ActionType.ToLower() == "delete");
-                    _logger.LogInformation("Applied ActionType filter: Delete");
-                }
-                else
-                {
-                    // any other action (e.g., login) matches case-insensitively
+                else if (act != "all")
                     query = query.Where(a => a.ActionType.ToLower() == act);
-                    _logger.LogInformation($"Applied ActionType filter: {act}");
-                }
             }
 
-            // Filter by entity name
-            if (!string.IsNullOrWhiteSpace(filter.EntityName))
-            {
+            if (!string.IsNullOrWhiteSpace(filter?.EntityName))
                 query = query.Where(a => a.EntityName == filter.EntityName);
-            }
 
-            // Order by most recent first
-            query = query.OrderByDescending(a => a.Timestamp);
+            if (!isAdmin)
+                query = query.Where(a => a.User == null ? !EF.Functions.Like(a.PerformedBy ?? "", "%admin%") : a.User.Role != "Admin");
 
-            var activityLogs = await query
+            var result = await query.OrderByDescending(a => a.Timestamp)
                 .Select(a => new ActivityLogResponseDto
                 {
                     Id = a.Id,
@@ -106,22 +110,21 @@ namespace quotation_generator_back_end.Controllers
                     Description = a.Description,
                     PerformedBy = a.PerformedBy,
                     Timestamp = a.Timestamp
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
-            return Ok(activityLogs);
+            return Ok(result);
         }
 
-        /// <summary>
-        /// Get all activity logs
-        /// </summary>
-        /// <returns>List of all activity logs</returns>
         [HttpGet]
-        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> GetAllActivityLogs()
         {
-            var activityLogs = await _context.ActivityLogs
-                .OrderByDescending(a => a.Timestamp)
+            var isAdmin = string.Equals(GetLoggedInUserRole(), "Admin", StringComparison.OrdinalIgnoreCase);
+            var query = _context.ActivityLogs.Include(a => a.User).AsQueryable();
+
+            if (!isAdmin)
+                query = query.Where(a => a.User == null ? !EF.Functions.Like(a.PerformedBy ?? "", "%admin%") : a.User.Role != "Admin");
+
+            var result = await query.OrderByDescending(a => a.Timestamp)
                 .Select(a => new ActivityLogResponseDto
                 {
                     Id = a.Id,
@@ -131,25 +134,23 @@ namespace quotation_generator_back_end.Controllers
                     Description = a.Description,
                     PerformedBy = a.PerformedBy,
                     Timestamp = a.Timestamp
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
-            return Ok(activityLogs);
+            return Ok(result);
         }
 
-        /// <summary>
-        /// Get activity logs for a specific entity
-        /// </summary>
-        /// <param name="entityName">Name of the entity (e.g., "Item", "Client", "Quotation")</param>
-        /// <param name="recordId">ID of the specific record</param>
-        /// <returns>List of activity logs for the entity</returns>
         [HttpGet("{entityName}/{recordId}")]
-        [AllowAnonymous]
         public async Task<ActionResult<IEnumerable<ActivityLogResponseDto>>> GetActivityLogsForEntity(string entityName, int recordId)
         {
-            var activityLogs = await _context.ActivityLogs
-                .Where(a => a.EntityName == entityName && a.RecordId == recordId)
-                .OrderByDescending(a => a.Timestamp)
+            var isAdmin = string.Equals(GetLoggedInUserRole(), "Admin", StringComparison.OrdinalIgnoreCase);
+
+            var query = _context.ActivityLogs.Include(a => a.User)
+                        .Where(a => a.EntityName == entityName && a.RecordId == recordId);
+
+            if (!isAdmin)
+                query = query.Where(a => a.User == null ? !EF.Functions.Like(a.PerformedBy ?? "", "%admin%") : a.User.Role != "Admin");
+
+            var result = await query.OrderByDescending(a => a.Timestamp)
                 .Select(a => new ActivityLogResponseDto
                 {
                     Id = a.Id,
@@ -159,10 +160,22 @@ namespace quotation_generator_back_end.Controllers
                     Description = a.Description,
                     PerformedBy = a.PerformedBy,
                     Timestamp = a.Timestamp
-                })
-                .ToListAsync();
+                }).ToListAsync();
 
-            return Ok(activityLogs);
+            return Ok(result);
         }
+
+        // Helper Methods
+        private string? GetLoggedInUserRole() =>
+            User.FindFirst(ClaimTypes.Role)?.Value ?? User.FindFirst("role")?.Value;
+
+        private int? GetLoggedInUserId()
+        {
+            var id = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("sub")?.Value;
+            return int.TryParse(id, out var parsed) ? parsed : (int?)null;
+        }
+
+        private string? GetLoggedInUserEmail() =>
+            User.FindFirst(ClaimTypes.Email)?.Value ?? User.FindFirst("email")?.Value ?? User.Identity?.Name;
     }
 }
