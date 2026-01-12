@@ -56,7 +56,8 @@ namespace quotation_generator_back_end.Services
 
             // Get action type filter (All, Created, Updated, Deleted)
             // Check both Filters.ActionType and Filters.Activity fields, and fallback to root ActionType
-            var actionType = (request?.Filters?.ActionType ?? request?.Filters?.Activity ?? request?.ActionType)?.ToLowerInvariant() ?? "all";
+            var actionTypeRaw = request?.Filters?.ActionType ?? request?.Filters?.Activity ?? request?.ActionType;
+            var actionType = actionTypeRaw?.Trim().ToLowerInvariant() ?? "all";
             
             // Debug logging
             _logger.LogInformation($"Report Request - Type: {reportType}, ActionType: {actionType}, ActionTypeField: {request?.Filters?.ActionType}, ActivityField: {request?.Filters?.Activity}, RootActionType: {request?.ActionType}, StartDate: {startDate}, EndDate: {endDate}");
@@ -92,32 +93,65 @@ namespace quotation_generator_back_end.Services
                             .Where(log => log.EntityName == "Item" && itemIds.Contains(log.RecordId))
                             .ToListAsync();
 
+                        // Group logs by item ID and get only the most recent action for each
+                        var latestProductActions = productLogs
+                            .GroupBy(log => log.RecordId)
+                            .Select(g => g.OrderByDescending(l => l.Timestamp).First())
+                            .ToList();
+
                         if (actionType == "created" || actionType == "create")
                         {
-                            var createdIds = productLogs
-                                .Where(log => log.ActionType.ToLower() == "create")
+                            var createdIds = latestProductActions
+                                .Where(log => log.ActionType.Equals("create", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             items = items.Where(it => createdIds.Contains(it.Id)).ToList();
                         }
                         else if (actionType == "updated" || actionType == "update")
                         {
-                            var updatedIds = productLogs
-                                .Where(log => log.ActionType.ToLower() == "update")
+                            var updatedIds = latestProductActions
+                                .Where(log => log.ActionType.Equals("update", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             items = items.Where(it => updatedIds.Contains(it.Id)).ToList();
                         }
                         else if (actionType == "deleted" || actionType == "delete")
                         {
-                            var deletedIds = productLogs
-                                .Where(log => log.ActionType.ToLower() == "delete")
+                            var deletedIds = latestProductActions
+                                .Where(log => log.ActionType.Equals("delete", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             items = items.Where(it => deletedIds.Contains(it.Id) || !it.IsActive).ToList();
+                        }
+                    }
+
+                    // Include deleted-only rows for items that no longer exist in DB (when requesting Deleted or All)
+                    if (actionType == "deleted" || actionType == "delete" || actionType == "all")
+                    {
+                        var deletedLogsQuery = _db.ActivityLogs.Where(l => l.EntityName == "Item" && l.ActionType.ToLower() == "delete");
+                        if (startDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp >= startDate.Value);
+                        if (endDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp <= endDate.Value);
+                        var deletedLogs = await deletedLogsQuery.ToListAsync();
+                        var existingIds = new HashSet<int>(items.Select(i => i.Id));
+                        foreach (var log in deletedLogs)
+                        {
+                            if (actionType != "all" && (actionType != "deleted" && actionType != "delete")) continue;
+                            if (existingIds.Contains(log.RecordId)) continue; // already represented
+
+                            var rowDel = dt.NewRow();
+                            // Try to extract title from description pattern: "Deleted item: {Title}"
+                            string? title = null;
+                            var desc = log.Description ?? string.Empty;
+                            var marker = "Deleted item:";
+                            if (desc.Contains(marker)) title = desc.Substring(desc.IndexOf(marker) + marker.Length).Trim();
+
+                            rowDel["Product Name"] = title ?? $"Item #{log.RecordId}";
+                            rowDel["SKU"] = log.RecordId.ToString();
+                            rowDel["Category"] = string.Empty;
+                            rowDel["Price"] = 0m;
+                            rowDel["Stock"] = 0;
+                            rowDel["Created Date"] = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
+                            dt.Rows.Add(rowDel);
                         }
                     }
 
@@ -162,30 +196,33 @@ namespace quotation_generator_back_end.Services
                             .Where(log => log.EntityName == "User" && userIds.Contains(log.RecordId))
                             .ToListAsync();
 
+                        // Group logs by user ID and get only the most recent action for each
+                        var latestUserActions = userLogs
+                            .GroupBy(log => log.RecordId)
+                            .Select(g => g.OrderByDescending(l => l.Timestamp).First())
+                            .ToList();
+
                         if (actionType == "created" || actionType == "create")
                         {
-                            var createdIds = userLogs
-                                .Where(log => log.ActionType.ToLower() == "create")
+                            var createdIds = latestUserActions
+                                .Where(log => log.ActionType.Equals("create", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             users = users.Where(u => createdIds.Contains(u.Id)).ToList();
                         }
                         else if (actionType == "updated" || actionType == "update")
                         {
-                            var updatedIds = userLogs
-                                .Where(log => log.ActionType.ToLower() == "update")
+                            var updatedIds = latestUserActions
+                                .Where(log => log.ActionType.Equals("update", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             users = users.Where(u => updatedIds.Contains(u.Id)).ToList();
                         }
                         else if (actionType == "deleted" || actionType == "delete")
                         {
-                            var deletedIds = userLogs
-                                .Where(log => log.ActionType.ToLower() == "delete")
+                            var deletedIds = latestUserActions
+                                .Where(log => log.ActionType.Equals("delete", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             users = users.Where(u => deletedIds.Contains(u.Id)).ToList();
                         }
@@ -233,30 +270,33 @@ namespace quotation_generator_back_end.Services
                             .Where(log => log.EntityName == "Quotation" && invoiceIds.Contains(log.RecordId))
                             .ToListAsync();
 
+                        // Group logs by invoice ID and get only the most recent action for each
+                        var latestInvoiceActions = invoiceLogs
+                            .GroupBy(log => log.RecordId)
+                            .Select(g => g.OrderByDescending(l => l.Timestamp).First())
+                            .ToList();
+
                         if (actionType == "created" || actionType == "create")
                         {
-                            var createdIds = invoiceLogs
-                                .Where(log => log.ActionType.ToLower() == "create")
+                            var createdIds = latestInvoiceActions
+                                .Where(log => log.ActionType.Equals("create", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             invoices = invoices.Where(inv => createdIds.Contains(inv.Id)).ToList();
                         }
                         else if (actionType == "updated" || actionType == "update")
                         {
-                            var updatedIds = invoiceLogs
-                                .Where(log => log.ActionType.ToLower() == "update")
+                            var updatedIds = latestInvoiceActions
+                                .Where(log => log.ActionType.Equals("update", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             invoices = invoices.Where(inv => updatedIds.Contains(inv.Id)).ToList();
                         }
                         else if (actionType == "deleted" || actionType == "delete")
                         {
-                            var deletedIds = invoiceLogs
-                                .Where(log => log.ActionType.ToLower() == "delete")
+                            var deletedIds = latestInvoiceActions
+                                .Where(log => log.ActionType.Equals("delete", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
                             invoices = invoices.Where(inv => deletedIds.Contains(inv.Id)).ToList();
                         }
@@ -283,103 +323,215 @@ namespace quotation_generator_back_end.Services
                     dt.Columns.Add("Status");
                     dt.Columns.Add("Expiry Date");
 
-                    var quotes = await _db.Quotations.Include(q => q.Client).ToListAsync();
-                    
-                    // Apply date filtering for quotes (by QuoteDate)
-                    var quoteStartDate = startDate?.Date;
-                    var quoteEndDate = endDate?.Date.AddDays(1).AddSeconds(-1);
-                    if (quoteStartDate.HasValue || quoteEndDate.HasValue)
-                    {
-                        quotes = quotes.Where(q =>
-                        {
-                            if (quoteStartDate.HasValue && q.QuoteDate < quoteStartDate.Value) return false;
-                            if (quoteEndDate.HasValue && q.QuoteDate > quoteEndDate.Value) return false;
-                            return true;
-                        }).ToList();
-                    }
+                    _logger.LogInformation($"Quotes report: actionType='{actionType}', is deleted? {actionType == "deleted" || actionType == "delete"}");
 
-                    // Apply quotation type filtering (Status)
-                    var quotationType = (request?.Filters?.QuotationType ?? request?.Filters?.Status)?.Trim();
-                    _logger.LogInformation($"QuotationType filter: '{quotationType}'");
-                    if (!string.IsNullOrWhiteSpace(quotationType) && !quotationType.Equals("all", StringComparison.OrdinalIgnoreCase))
+                    // If actionType is deleted, ONLY show deleted quotations from ActivityLogs
+                    if (actionType == "deleted" || actionType == "delete")
                     {
-                        var qt = quotationType.ToLowerInvariant();
-                        // Support grouped/synonym statuses like "rejected" (declined/expired/rejected)
-                        if (qt == "rejected")
-                        {
-                            var rejectedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "declined", "expired", "rejected" };
-                            quotes = quotes.Where(q => !string.IsNullOrWhiteSpace(q.Status) && rejectedSet.Contains(q.Status)).ToList();
-                        }
-                        else
-                        {
-                            quotes = quotes.Where(q => !string.IsNullOrWhiteSpace(q.Status) && q.Status.Equals(quotationType, StringComparison.OrdinalIgnoreCase)).ToList();
-                        }
-                        _logger.LogInformation($"Quotes after quotation type filter '{qt}': {quotes.Count}");
-                    }
+                        _logger.LogInformation($"Quotes report: DELETED MODE - showing only deleted quotations");
+                        // Query ONLY deleted logs, apply date filters, and add as synthetic rows
+                        var deletedLogsQuery = _db.ActivityLogs.Where(l => (l.EntityName == "Quotation" || l.EntityName == "Quote") && l.ActionType.ToLower() == "delete");
+                        if (startDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp >= startDate.Value);
+                        if (endDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp <= endDate.Value);
+                        var deletedLogs = await deletedLogsQuery.ToListAsync();
+                        _logger.LogInformation($"Deleted logs found: {deletedLogs.Count}");
 
-                    // Apply action type filtering for quotes
-                    if (actionType != "all")
+                        foreach (var log in deletedLogs)
+                        {
+                            var rqDel = dt.NewRow();
+                            rqDel["Quote ID"] = log.RecordId;
+                            var clientOrLabel = !string.IsNullOrWhiteSpace(log.Description)
+                                ? log.Description
+                                : $"Deleted quotation #{log.RecordId}";
+                            rqDel["Client"] = clientOrLabel;
+                            rqDel["Amount"] = 0m;
+                            rqDel["Date"] = log.Timestamp.ToString("yyyy-MM-dd");
+                            rqDel["Status"] = "Deleted";
+                            rqDel["Expiry Date"] = string.Empty;
+                            dt.Rows.Add(rqDel);
+                        }
+                        _logger.LogInformation($"Quotes report: Added {dt.Rows.Count} deleted rows");
+                    }
+                    else
                     {
-                        _logger.LogInformation($"Filtering Quotes by actionType: {actionType}");
+                        _logger.LogInformation($"Quotes report: NORMAL MODE (actionType='{actionType}')");
+                        // For All, Created, Updated: use normal quotation filtering logic
+                        var quotes = await _db.Quotations.Include(q => q.Client).ToListAsync();
+                        
+                        // Apply date filtering for quotes (by QuoteDate)
+                        var quoteStartDate = startDate?.Date;
+                        var quoteEndDate = endDate?.Date.AddDays(1).AddSeconds(-1);
+                        if (quoteStartDate.HasValue || quoteEndDate.HasValue)
+                        {
+                            quotes = quotes.Where(q =>
+                            {
+                                if (quoteStartDate.HasValue && q.QuoteDate < quoteStartDate.Value) return false;
+                                if (quoteEndDate.HasValue && q.QuoteDate > quoteEndDate.Value) return false;
+                                return true;
+                            }).ToList();
+                        }
+
+                        // Apply quotation type filtering (Status)
+                        var quotationType = (request?.Filters?.QuotationType ?? request?.Filters?.Status)?.Trim();
+                        _logger.LogInformation($"QuotationType filter: '{quotationType}'");
+                        if (!string.IsNullOrWhiteSpace(quotationType) && !quotationType.Equals("all", StringComparison.OrdinalIgnoreCase))
+                        {
+                            var qt = quotationType.ToLowerInvariant();
+                            // Support grouped/synonym statuses like "rejected" (declined/expired/rejected)
+                            if (qt == "rejected")
+                            {
+                                var rejectedSet = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "declined", "expired", "rejected" };
+                                quotes = quotes.Where(q => !string.IsNullOrWhiteSpace(q.Status) && rejectedSet.Contains(q.Status)).ToList();
+                            }
+                            else
+                            {
+                                quotes = quotes.Where(q => !string.IsNullOrWhiteSpace(q.Status) && q.Status.Equals(quotationType, StringComparison.OrdinalIgnoreCase)).ToList();
+                            }
+                            _logger.LogInformation($"Quotes after quotation type filter '{qt}': {quotes.Count}");
+                        }
+
+                        // Apply action type filtering for quotes (Created, Updated, All)
+                        _logger.LogInformation($"========== QUOTES ACTION TYPE FILTER ==========");
+                        _logger.LogInformation($"Received actionType: '{actionType}'");
+                        _logger.LogInformation($"Request Filters.ActionType: '{request?.Filters?.ActionType}'");
+                        _logger.LogInformation($"Request ActionType: '{request?.ActionType}'");
                         var quoteIds = quotes.Select(q => q.Id).ToList();
-                        _logger.LogInformation($"Total quotes before filtering: {quotes.Count}, IDs: {string.Join(",", quoteIds)}");
+                        _logger.LogInformation($"Total quotes before action filter: {quotes.Count}, IDs: {string.Join(",", quoteIds)}");
 
                         // Accept both "Quotation" and "Quote" entity names from activity logs
                         var quoteLogs = await _db.ActivityLogs
                             .Where(log => (log.EntityName == "Quotation" || log.EntityName == "Quote") && quoteIds.Contains(log.RecordId))
                             .ToListAsync();
 
-                        _logger.LogInformation($"Activity logs found for Quote entity: {quoteLogs.Count}");
-                        if (quoteLogs.Count > 0)
+                        _logger.LogInformation($"Activity logs found: {quoteLogs.Count}");
+                        if (quoteLogs.Any())
                         {
-                            _logger.LogInformation($"Log details: {string.Join("; ", quoteLogs.Select(l => $"ID:{l.RecordId}, Action:{l.ActionType}"))}");
+                            _logger.LogInformation($"Sample logs: {string.Join("; ", quoteLogs.Take(5).Select(l => $"[ID:{l.RecordId}, Action:{l.ActionType}, Time:{l.Timestamp:yyyy-MM-dd HH:mm:ss}]"))}");
                         }
 
                         if (actionType == "created" || actionType == "create")
                         {
-                            var createdIds = quoteLogs
-                                .Where(log => log.ActionType.ToLower() == "create")
-                                .Select(log => log.RecordId)
-                                .Distinct()
+                            // Group logs by quotation ID and get only the most recent action for each
+                            var latestActions = quoteLogs
+                                .GroupBy(log => log.RecordId)
+                                .Select(g => g.OrderByDescending(l => l.Timestamp).First())
                                 .ToList();
-                            _logger.LogInformation($"Created IDs found: {createdIds.Count}, IDs: {string.Join(",", createdIds)}");
+                            
+                            // Filter to only those whose latest action is "create"
+                            var createdIds = latestActions
+                                .Where(log => log.ActionType.Equals("create", StringComparison.OrdinalIgnoreCase))
+                                .Select(log => log.RecordId)
+                                .ToList();
+                            
+                            _logger.LogInformation($"Latest actions breakdown: {string.Join("; ", latestActions.GroupBy(l => l.ActionType.ToLower()).Select(g => $"{g.Key}={g.Count()}"))}");
+                            _logger.LogInformation($"Quotes with latest action = Created: {createdIds.Count}, IDs: {string.Join(",", createdIds)}");
                             quotes = quotes.Where(q => createdIds.Contains(q.Id)).ToList();
-                            _logger.LogInformation($"Quotes after created filter: {quotes.Count}");
+                            _logger.LogInformation($"FINAL: Quotes after Created filter: {quotes.Count}");
                         }
                         else if (actionType == "updated" || actionType == "update")
                         {
-                            var updatedIds = quoteLogs
-                                .Where(log => log.ActionType.ToLower() == "update")
-                                .Select(log => log.RecordId)
-                                .Distinct()
+                            // Group logs by quotation ID and get only the most recent action for each
+                            var latestActions = quoteLogs
+                                .GroupBy(log => log.RecordId)
+                                .Select(g => g.OrderByDescending(l => l.Timestamp).First())
                                 .ToList();
-                            _logger.LogInformation($"Updated IDs found: {updatedIds.Count}, IDs: {string.Join(",", updatedIds)}");
+                            
+                            // Filter to only those whose latest action is "update"
+                            var updatedIds = latestActions
+                                .Where(log => log.ActionType.Equals("update", StringComparison.OrdinalIgnoreCase))
+                                .Select(log => log.RecordId)
+                                .ToList();
+                            
+                            _logger.LogInformation($"Latest actions breakdown: {string.Join("; ", latestActions.GroupBy(l => l.ActionType.ToLower()).Select(g => $"{g.Key}={g.Count()}"))}");
+                            _logger.LogInformation($"Quotes with latest action = Updated: {updatedIds.Count}, IDs: {string.Join(",", updatedIds)}");
                             quotes = quotes.Where(q => updatedIds.Contains(q.Id)).ToList();
-                            _logger.LogInformation($"Quotes after updated filter: {quotes.Count}");
+                            _logger.LogInformation($"FINAL: Quotes after Updated filter: {quotes.Count}");
                         }
-                        else if (actionType == "deleted" || actionType == "delete")
+                        else
                         {
-                            var deletedIds = quoteLogs
-                                .Where(log => log.ActionType.ToLower() == "delete")
-                                .Select(log => log.RecordId)
-                                .Distinct()
-                                .ToList();
-                            _logger.LogInformation($"Deleted IDs found: {deletedIds.Count}, IDs: {string.Join(",", deletedIds)}");
-                            quotes = quotes.Where(q => deletedIds.Contains(q.Id)).ToList();
-                            _logger.LogInformation($"Quotes after deleted filter: {quotes.Count}");
+                            _logger.LogInformation($"Action type is '{actionType}' - showing all quotes (no filtering)");
+                        }
+                        _logger.LogInformation($"========== END QUOTES FILTER ==========");
+                        
+                        // Add live quotations from All or specific action type filters
+                        foreach (var q in quotes)
+                        {
+                            var rq = dt.NewRow();
+                            rq["Quote ID"] = q.Id;
+                            rq["Client"] = q.ClientName ?? q.Client?.ClientName ?? string.Empty;
+                            rq["Amount"] = q.Total;
+                            rq["Date"] = q.QuoteDate.ToString("yyyy-MM-dd");
+                            rq["Status"] = q.Status;
+                            rq["Expiry Date"] = q.ValidUntil?.ToString("yyyy-MM-dd") ?? string.Empty;
+                            dt.Rows.Add(rq);
+                        }
+
+                        // Include deleted-only rows for quotes when requesting All
+                        if (actionType == "all")
+                        {
+                            var deletedLogsQuery = _db.ActivityLogs.Where(l => (l.EntityName == "Quotation" || l.EntityName == "Quote") && l.ActionType.ToLower() == "delete");
+                            if (startDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp >= startDate.Value);
+                            if (endDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp <= endDate.Value);
+                            var deletedLogs = await deletedLogsQuery.ToListAsync();
+                            var existingIds = new HashSet<int>(quotes.Select(q => q.Id));
+                            foreach (var log in deletedLogs)
+                            {
+                                if (existingIds.Contains(log.RecordId)) continue;
+
+                                var rqDel = dt.NewRow();
+                                rqDel["Quote ID"] = log.RecordId;
+                                var clientOrLabel = !string.IsNullOrWhiteSpace(log.Description)
+                                    ? log.Description
+                                    : $"Deleted quotation #{log.RecordId}";
+                                rqDel["Client"] = clientOrLabel;
+                                rqDel["Amount"] = 0m;
+                                rqDel["Date"] = log.Timestamp.ToString("yyyy-MM-dd");
+                                rqDel["Status"] = "Deleted";
+                                rqDel["Expiry Date"] = string.Empty;
+                                dt.Rows.Add(rqDel);
+                            }
+                        }
+
+                        // Safety guard: if the requested action is Deleted/Delete, ensure ONLY deleted rows remain
+                        // This protects view/print outputs from any accidental inclusion of live rows
+                        if ((actionType == "deleted" || actionType == "delete") && dt.Columns.Contains("Status"))
+                        {
+                            var rowsToRemove = new List<DataRow>();
+                            foreach (DataRow row in dt.Rows)
+                            {
+                                var status = row["Status"]?.ToString()?.Trim();
+                                if (!string.Equals(status, "Deleted", StringComparison.OrdinalIgnoreCase))
+                                {
+                                    rowsToRemove.Add(row);
+                                }
+                            }
+                            foreach (var r in rowsToRemove)
+                            {
+                                dt.Rows.Remove(r);
+                            }
+                            _logger.LogInformation($"Quotes report: Post-filter applied for Deleted; remaining rows: {dt.Rows.Count}");
                         }
                     }
-
-                    foreach (var q in quotes)
+                    
+                    // ABSOLUTE FINAL GUARD: Enforce deleted-only for Quotes + Deleted across ALL paths
+                    if ((actionType == "deleted" || actionType == "delete") && dt.Columns.Contains("Status"))
                     {
-                        var rq = dt.NewRow();
-                        rq["Quote ID"] = q.Id;
-                        rq["Client"] = q.ClientName ?? q.Client?.ClientName ?? string.Empty;
-                        rq["Amount"] = q.Total;
-                        rq["Date"] = q.QuoteDate.ToString("yyyy-MM-dd");
-                        rq["Status"] = q.Status;
-                        rq["Expiry Date"] = q.ValidUntil?.ToString("yyyy-MM-dd") ?? string.Empty;
-                        dt.Rows.Add(rq);
+                        _logger.LogInformation($"Quotes FINAL GUARD: Before enforcement - {dt.Rows.Count} rows, actionType='{actionType}'");
+                        var finalRemove = new List<DataRow>();
+                        foreach (DataRow row in dt.Rows)
+                        {
+                            var status = row["Status"]?.ToString()?.Trim() ?? "";
+                            if (!status.Equals("Deleted", StringComparison.OrdinalIgnoreCase))
+                            {
+                                finalRemove.Add(row);
+                            }
+                        }
+                        _logger.LogInformation($"Quotes FINAL GUARD: Removing {finalRemove.Count} non-deleted rows");
+                        foreach (var r in finalRemove)
+                        {
+                            dt.Rows.Remove(r);
+                        }
+                        _logger.LogInformation($"Quotes FINAL GUARD: After enforcement - {dt.Rows.Count} rows remain");
                     }
                     break;
 
@@ -416,43 +568,72 @@ namespace quotation_generator_back_end.Services
                             .ToListAsync();
                         
                         _logger.LogInformation($"Activity logs found for Client entity: {clientLogs.Count}");
-                        if (clientLogs.Count > 0)
-                        {
-                            _logger.LogInformation($"Log details: {string.Join("; ", clientLogs.Select(l => $"ID:{l.RecordId}, Action:{l.ActionType}"))}");
-                        }
+
+                        // Group logs by client ID and get only the most recent action for each
+                        var latestClientActions = clientLogs
+                            .GroupBy(log => log.RecordId)
+                            .Select(g => g.OrderByDescending(l => l.Timestamp).First())
+                            .ToList();
 
                         if (actionType == "created" || actionType == "create")
                         {
-                            var createdIds = clientLogs
-                                .Where(log => log.ActionType.ToLower() == "create")
+                            var createdIds = latestClientActions
+                                .Where(log => log.ActionType.Equals("create", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
-                            _logger.LogInformation($"Created IDs found: {createdIds.Count}, IDs: {string.Join(",", createdIds)}");
+                            _logger.LogInformation($"Clients with latest action = Created: {createdIds.Count}, IDs: {string.Join(",", createdIds)}");
                             clients = clients.Where(c => createdIds.Contains(c.Id)).ToList();
                             _logger.LogInformation($"Clients after created filter: {clients.Count}");
                         }
                         else if (actionType == "updated" || actionType == "update")
                         {
-                            var updatedIds = clientLogs
-                                .Where(log => log.ActionType.ToLower() == "update")
+                            var updatedIds = latestClientActions
+                                .Where(log => log.ActionType.Equals("update", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
-                            _logger.LogInformation($"Updated IDs found: {updatedIds.Count}, IDs: {string.Join(",", updatedIds)}");
+                            _logger.LogInformation($"Clients with latest action = Updated: {updatedIds.Count}, IDs: {string.Join(",", updatedIds)}");
                             clients = clients.Where(c => updatedIds.Contains(c.Id)).ToList();
                             _logger.LogInformation($"Clients after updated filter: {clients.Count}");
                         }
                         else if (actionType == "deleted" || actionType == "delete")
                         {
-                            var deletedIds = clientLogs
-                                .Where(log => log.ActionType.ToLower() == "delete")
+                            var deletedIds = latestClientActions
+                                .Where(log => log.ActionType.Equals("delete", StringComparison.OrdinalIgnoreCase))
                                 .Select(log => log.RecordId)
-                                .Distinct()
                                 .ToList();
-                            _logger.LogInformation($"Deleted IDs found: {deletedIds.Count}, IDs: {string.Join(",", deletedIds)}");
+                            _logger.LogInformation($"Clients with latest action = Deleted: {deletedIds.Count}, IDs: {string.Join(",", deletedIds)}");
                             clients = clients.Where(c => deletedIds.Contains(c.Id) || !c.IsActive).ToList();
                             _logger.LogInformation($"Clients after deleted filter: {clients.Count}");
+                        }
+                    }
+
+                    // Include deleted-only rows for clients that no longer exist (when requesting Deleted or All)
+                    if (actionType == "deleted" || actionType == "delete" || actionType == "all")
+                    {
+                        var deletedLogsQuery = _db.ActivityLogs.Where(l => l.EntityName == "Client" && l.ActionType.ToLower() == "delete");
+                        if (startDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp >= startDate.Value);
+                        if (endDate.HasValue) deletedLogsQuery = deletedLogsQuery.Where(l => l.Timestamp <= endDate.Value);
+                        var deletedLogs = await deletedLogsQuery.ToListAsync();
+                        var existingIds = new HashSet<int>(clients.Select(c => c.Id));
+                        foreach (var log in deletedLogs)
+                        {
+                            if (actionType != "all" && (actionType != "deleted" && actionType != "delete")) continue;
+                            if (existingIds.Contains(log.RecordId)) continue;
+
+                            var rcDel = dt.NewRow();
+                            // Extract name from description: "Deleted client: {Name}"
+                            string? name = null;
+                            var desc = log.Description ?? string.Empty;
+                            var marker = "Deleted client:";
+                            if (desc.Contains(marker)) name = desc.Substring(desc.IndexOf(marker) + marker.Length).Trim();
+
+                            rcDel["Client Name"] = name ?? $"Client #{log.RecordId}";
+                            rcDel["Email"] = string.Empty;
+                            rcDel["Phone"] = string.Empty;
+                            rcDel["Address"] = string.Empty;
+                            rcDel["Status"] = "Deleted";
+                            rcDel["Created Date"] = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
+                            dt.Rows.Add(rcDel);
                         }
                     }
 
@@ -471,12 +652,13 @@ namespace quotation_generator_back_end.Services
 
                 case "Activity":
                 default:
+                    // Align columns with frontend expectations for Activity report
+                    // Frontend uses: ["Date", "User", "ActionType", "EntityName", "Description"]
                     dt.Columns.Add("Date");
-                    dt.Columns.Add("Entity");
-                    dt.Columns.Add("Record ID", typeof(int));
-                    dt.Columns.Add("Action");
+                    dt.Columns.Add("User");
+                    dt.Columns.Add("ActionType");
+                    dt.Columns.Add("EntityName");
                     dt.Columns.Add("Description");
-                    dt.Columns.Add("Performed By");
 
                     var activityLogs = await _db.ActivityLogs.ToListAsync();
                     
@@ -491,32 +673,104 @@ namespace quotation_generator_back_end.Services
                         }).ToList();
                     }
 
-                    // Apply action type filtering for activity logs (by ActionType)
-                    if (actionType != "all")
+                    // Determine entity filter vs action filter for Activity reports.
+                    // Frontend may send Filters.Activity as either an action (Created/Updated/Deleted/Login/All)
+                    // or as an entity category (Clients/Quotes/Items/Users). We handle both without changing other APIs.
+                    var rawActivity = request?.Filters?.Activity?.Trim().ToLowerInvariant();
+                    var actionCandidate = request?.Filters?.ActionType?.Trim().ToLowerInvariant();
+                    var actionSynonyms = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+                    { "all", "create", "created", "update", "updated", "delete", "deleted", "login", "logins" };
+
+                    // If Filters.ActionType is not set but Filters.Activity looks like an action, use it as action filter
+                    if (string.IsNullOrWhiteSpace(actionCandidate) && !string.IsNullOrWhiteSpace(rawActivity) && actionSynonyms.Contains(rawActivity))
                     {
-                        if (actionType == "created" || actionType == "create")
+                        actionCandidate = rawActivity;
+                    }
+
+                    // Resolve final action filter with root fallback
+                    var activityActionType = (actionCandidate ?? request?.ActionType)?.ToLowerInvariant() ?? "all";
+
+                    // Resolve optional entity filter from Filters.Activity when it isn't an action keyword
+                    string? entityFilter = null;
+                    if (!string.IsNullOrWhiteSpace(rawActivity) && !actionSynonyms.Contains(rawActivity))
+                    {
+                        // Map common entity names
+                        if (rawActivity is "client" or "clients") entityFilter = "Client";
+                        else if (rawActivity is "quotation" or "quote" or "quotes") entityFilter = "Quotation"; // accept both later
+                        else if (rawActivity is "item" or "items" or "product" or "products") entityFilter = "Item";
+                        else if (rawActivity is "user" or "users") entityFilter = "User";
+                    }
+
+                    _logger.LogInformation($"Activity filters -> Action: {activityActionType}, Entity: {entityFilter ?? "(none)"}");
+
+                    // Apply entity filter if provided
+                    if (!string.IsNullOrWhiteSpace(entityFilter))
+                    {
+                        if (string.Equals(entityFilter, "Quotation", StringComparison.OrdinalIgnoreCase))
                         {
-                            activityLogs = activityLogs.Where(log => log.ActionType.ToLower() == "create").ToList();
+                            activityLogs = activityLogs.Where(log => string.Equals(log.EntityName, "Quotation", StringComparison.OrdinalIgnoreCase) || string.Equals(log.EntityName, "Quote", StringComparison.OrdinalIgnoreCase)).ToList();
                         }
-                        else if (actionType == "updated" || actionType == "update")
+                        else
                         {
-                            activityLogs = activityLogs.Where(log => log.ActionType.ToLower() == "update").ToList();
-                        }
-                        else if (actionType == "deleted" || actionType == "delete")
-                        {
-                            activityLogs = activityLogs.Where(log => log.ActionType.ToLower() == "delete").ToList();
+                            activityLogs = activityLogs.Where(log => string.Equals(log.EntityName ?? string.Empty, entityFilter, StringComparison.OrdinalIgnoreCase)).ToList();
                         }
                     }
+
+                    if (activityActionType != "all")
+                    {
+                        if (activityActionType == "created" || activityActionType == "create")
+                        {
+                            activityLogs = activityLogs.Where(log => (log.ActionType ?? string.Empty).Trim().ToLower() == "create").ToList();
+                        }
+                        else if (activityActionType == "updated" || activityActionType == "update")
+                        {
+                            activityLogs = activityLogs.Where(log => (log.ActionType ?? string.Empty).Trim().ToLower() == "update").ToList();
+                        }
+                        else if (activityActionType == "deleted" || activityActionType == "delete")
+                        {
+                            activityLogs = activityLogs.Where(log => (log.ActionType ?? string.Empty).Trim().ToLower() == "delete").ToList();
+                        }
+                        else if (activityActionType == "login" || activityActionType == "logins")
+                        {
+                            activityLogs = activityLogs.Where(log => (log.ActionType ?? string.Empty).Trim().ToLower() == "login").ToList();
+                        }
+                    }
+
+                    // Enrich descriptions with Client/Quotation details to satisfy Activity details requirement
+                    var activityClientIds = activityLogs.Where(l => string.Equals(l.EntityName, "Client", StringComparison.OrdinalIgnoreCase)).Select(l => l.RecordId).Distinct().ToList();
+                    var activityQuoteIds = activityLogs.Where(l => string.Equals(l.EntityName, "Quotation", StringComparison.OrdinalIgnoreCase) || string.Equals(l.EntityName, "Quote", StringComparison.OrdinalIgnoreCase)).Select(l => l.RecordId).Distinct().ToList();
+                    var activityClientsById = activityClientIds.Count > 0 ? await _db.Clients.Where(c => activityClientIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id) : new Dictionary<int, Models.Client>();
+                    var activityQuotesById = activityQuoteIds.Count > 0 ? await _db.Quotations.Where(q => activityQuoteIds.Contains(q.Id)).ToDictionaryAsync(q => q.Id) : new Dictionary<int, Models.Quotation>();
 
                     foreach (var log in activityLogs)
                     {
                         var rowLog = dt.NewRow();
                         rowLog["Date"] = log.Timestamp.ToString("yyyy-MM-dd HH:mm:ss");
-                        rowLog["Entity"] = log.EntityName ?? string.Empty;
-                        rowLog["Record ID"] = log.RecordId;
-                        rowLog["Action"] = log.ActionType ?? string.Empty;
-                        rowLog["Description"] = log.Description ?? string.Empty;
-                        rowLog["Performed By"] = log.PerformedBy ?? string.Empty;
+                        rowLog["User"] = log.PerformedBy ?? string.Empty;
+                        rowLog["ActionType"] = (log.ActionType ?? string.Empty).Trim();
+                        rowLog["EntityName"] = log.EntityName ?? string.Empty;
+                        // Build enriched description for Clients and Quotations
+                        var desc = log.Description ?? string.Empty;
+                        if (string.Equals(log.EntityName, "Client", StringComparison.OrdinalIgnoreCase) && activityClientsById.TryGetValue(log.RecordId, out var client))
+                        {
+                            var name = client.ClientName ?? "Client";
+                            var email = client.ClientEmail ?? string.Empty;
+                            var phone = client.ClientContactNumber ?? client.Phone ?? string.Empty;
+                            desc = string.IsNullOrWhiteSpace(desc)
+                                ? $"{name} (Email: {email}, Phone: {phone})"
+                                : $"{desc} | {name} (Email: {email}, Phone: {phone})";
+                        }
+                        else if ((string.Equals(log.EntityName, "Quotation", StringComparison.OrdinalIgnoreCase) || string.Equals(log.EntityName, "Quote", StringComparison.OrdinalIgnoreCase)) && activityQuotesById.TryGetValue(log.RecordId, out var quote))
+                        {
+                            var qClient = quote.ClientName ?? string.Empty;
+                            var total = quote.Total;
+                            var status = quote.Status ?? string.Empty;
+                            var date = quote.QuoteDate.ToString("yyyy-MM-dd");
+                            desc = string.IsNullOrWhiteSpace(desc)
+                                ? $"Client: {qClient}, Total: {total}, Status: {status}, Date: {date}"
+                                : $"{desc} | Client: {qClient}, Total: {total}, Status: {status}, Date: {date}";
+                        }
+                        rowLog["Description"] = desc;
                         dt.Rows.Add(rowLog);
                     }
                     break;

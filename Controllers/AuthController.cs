@@ -130,6 +130,13 @@ namespace quotation_generator_back_end.Controllers
             var token = _jwtService.GenerateToken(user, request.RememberMe);
             var expirationDays = request.RememberMe ? 30 : 1;
 
+            // Log login activity (non-intrusive, post-auth success)
+            try
+            {
+                await _activityLogger.LogAsync("User", user.Id, "Login", $"User login: {user.Email}");
+            }
+            catch { /* do not break login flow */ }
+
             return Ok(new AuthResponseDto
             {
                 Success = true,

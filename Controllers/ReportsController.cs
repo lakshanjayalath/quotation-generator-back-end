@@ -32,7 +32,7 @@ namespace quotation_generator_back_end.Controllers
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error generating report");
-                return StatusCode(500, new { message = ex.Message });
+                return StatusCode(500, new { message = ex.Message, details = ex.InnerException?.Message });
             }
         }
 
